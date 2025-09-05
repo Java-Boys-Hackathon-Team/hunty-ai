@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd" objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+    <changeSet id="1" author="hunty-hr">
+        <createTable tableName="APPLICATION_ENTITY">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_APPLICATION_ENTITY"/>
+            </column>
+            <column name="CANDIDATE_ID" type="UUID"/>
+            <column name="VACANCY_ID" type="UUID"/>
+            <column name="STATUS" type="VARCHAR(255)"/>
+            <column name="SCREENING_SUMMARY" type="CLOB"/>
+            <column name="SCREENING_MATCH_PERCENT" type="BIGINT"/>
+            <column name="TECH_SCORE" type="BIGINT"/>
+            <column name="COMM_SCORE" type="BIGINT"/>
+            <column name="CASES_SCORE" type="BIGINT"/>
+            <column name="TOTAL_SCORE" type="BIGINT"/>
+            <column name="STAGE_ID" type="UUID"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="2" author="hunty-hr">
+        <createTable tableName="INTERVIEW_QUESTION_ENTITY">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_INTERVIEW_QUESTION_ENTITY"/>
+            </column>
+            <column name="TEMPLATE_ID" type="UUID"/>
+            <column name="TYPE_" type="VARCHAR(255)"/>
+            <column name="TEXT" type="CLOB"/>
+            <column name="ASKED_AT" type="DATETIME"/>
+            <column name="ANSWER" type="CLOB"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="3" author="hunty-hr">
+        <createTable tableName="INTERVIEW_SCENARIO_ENTITY">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_INTERVIEW_SCENARIO_ENTITY"/>
+            </column>
+            <column name="NAME" type="VARCHAR(255)"/>
+            <column name="LANGUAGE_" type="VARCHAR(255)"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="4" author="hunty-hr">
+        <createTable tableName="INTERVIEW_SESSION_ENTITY">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_INTERVIEW_SESSION_ENTITY"/>
+            </column>
+            <column name="APPLICATION_ID" type="UUID"/>
+            <column name="SCENARIO_ID" type="UUID"/>
+            <column name="STATE" type="VARCHAR(255)"/>
+            <column name="SCHEDULED_START_AT" type="DATETIME"/>
+            <column name="STARTED_AT" type="DATETIME"/>
+            <column name="COMPLETED_AT" type="DATETIME"/>
+            <column name="LANGUAGE_" type="VARCHAR(255)"/>
+            <column name="TRANSCRIPTION_ID" type="UUID"/>
+            <column name="ANALYTICS_ID" type="UUID"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="5" author="hunty-hr">
+        <createTable tableName="QUESTION_TEMPLATE_ENTITY">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_QUESTION_TEMPLATE_ENTITY"/>
+            </column>
+            <column name="TYPE_" type="VARCHAR(255)"/>
+            <column name="IDX" type="BIGINT"/>
+            <column name="DIFFICULTY" type="BIGINT"/>
+            <column name="TEXT" type="CLOB"/>
+            <column name="INTERVIEW_SCENARIO_ENTITY_ID" type="UUID"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="6" author="hunty-hr">
+        <createTable tableName="RESUME_SKILL_ENTITY">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_RESUME_SKILL_ENTITY"/>
+            </column>
+            <column name="NAME" type="VARCHAR(255)"/>
+            <column name="RESUME_VERSION_ENTITY_ID" type="UUID"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="7" author="hunty-hr">
+        <createTable tableName="STORAGE_OBJECT_ENTITY">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_STORAGE_OBJECT_ENTITY"/>
+            </column>
+            <column name="REF_" type="CLOB"/>
+            <column name="TYPE_" type="VARCHAR(255)"/>
+            <column name="CREATED_AT" type="DATETIME"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="8" author="hunty-hr">
+        <createTable tableName="VACANCY_ENTITY">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_VACANCY_ENTITY"/>
+            </column>
+            <column name="TITLE" type="VARCHAR(255)"/>
+            <column name="SENIORITY" type="VARCHAR(255)"/>
+            <column name="STATUS" type="VARCHAR(255)"/>
+            <column name="DESCRIPTION" type="CLOB"/>
+            <column name="RESPONSIBILITIES" type="CLOB"/>
+            <column name="REQUIREMENTS" type="CLOB"/>
+            <column name="NICE_TO_HAVE" type="CLOB"/>
+            <column name="CONDITIONS" type="CLOB"/>
+            <column name="WEIGHT_TECH" type="BIGINT"/>
+            <column name="WEIGHT_COMM" type="BIGINT"/>
+            <column name="WEIGHT_CASES" type="BIGINT"/>
+            <column name="SCENARIO_ID" type="UUID"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="9" author="hunty-hr">
+        <createTable tableName="VACANCY_PIPELINE_STAGE_ENTITY">
+            <column name="ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_VACANCY_PIPELINE_STAGE_ENTITY"/>
+            </column>
+            <column name="TYPE_" type="VARCHAR(255)"/>
+            <column name="NAME" type="VARCHAR(255)"/>
+            <column name="IDX" type="BIGINT"/>
+            <column name="ACTIVE" type="BOOLEAN"/>
+            <column name="VACANCY_ENTITY_ID" type="UUID"/>
+        </createTable>
+    </changeSet>
+    <changeSet id="10" author="hunty-hr">
+        <addColumn tableName="CANDIDATE_ENTITY">
+            <column name="EMAIL" type="VARCHAR(255)"/>
+            <column name="LINKEDIN" type="VARCHAR(255)"/>
+            <column name="PHONE" type="VARCHAR(255)"/>
+            <column name="TELEGRAM" type="VARCHAR(255)"/>
+        </addColumn>
+    </changeSet>
+    <changeSet id="11" author="hunty-hr">
+        <addColumn tableName="RESUME_EXPERIENCE_ENTITY">
+            <column name="END_DATE" type="DATE"/>
+            <column name="START_AT" type="DATE"/>
+        </addColumn>
+    </changeSet>
+    <changeSet id="12" author="hunty-hr">
+        <addColumn tableName="RESUME_VERSION_ENTITY">
+            <column name="FILE_ID" type="UUID"/>
+        </addColumn>
+    </changeSet>
+    <changeSet id="13" author="hunty-hr">
+        <createIndex indexName="IDX_APPLICATION_ENTITY_CANDIDATE" tableName="APPLICATION_ENTITY">
+            <column name="CANDIDATE_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="CANDIDATE_ID" baseTableName="APPLICATION_ENTITY" constraintName="FK_APPLICATION_ENTITY_ON_CANDIDATE"
+                                 referencedColumnNames="ID" referencedTableName="CANDIDATE_ENTITY"/>
+    </changeSet>
+    <changeSet id="14" author="hunty-hr">
+        <createIndex indexName="IDX_APPLICATION_ENTITY_STAGE" tableName="APPLICATION_ENTITY">
+            <column name="STAGE_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="STAGE_ID" baseTableName="APPLICATION_ENTITY" constraintName="FK_APPLICATION_ENTITY_ON_STAGE"
+                                 referencedColumnNames="ID" referencedTableName="VACANCY_PIPELINE_STAGE_ENTITY"/>
+    </changeSet>
+    <changeSet id="15" author="hunty-hr">
+        <createIndex indexName="IDX_APPLICATION_ENTITY_VACANCY" tableName="APPLICATION_ENTITY">
+            <column name="VACANCY_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="VACANCY_ID" baseTableName="APPLICATION_ENTITY" constraintName="FK_APPLICATION_ENTITY_ON_VACANCY"
+                                 referencedColumnNames="ID" referencedTableName="VACANCY_ENTITY"/>
+    </changeSet>
+    <changeSet id="16" author="hunty-hr">
+        <createIndex indexName="IDX_INTERVIEW_QUESTION_ENTITY_TEMPLATE" tableName="INTERVIEW_QUESTION_ENTITY">
+            <column name="TEMPLATE_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="TEMPLATE_ID" baseTableName="INTERVIEW_QUESTION_ENTITY"
+                                 constraintName="FK_INTERVIEW_QUESTION_ENTITY_ON_TEMPLATE" referencedColumnNames="ID"
+                                 referencedTableName="QUESTION_TEMPLATE_ENTITY"/>
+    </changeSet>
+    <changeSet id="17" author="hunty-hr">
+        <createIndex indexName="IDX_INTERVIEW_SESSION_ENTITY_ANALYTICS" tableName="INTERVIEW_SESSION_ENTITY">
+            <column name="ANALYTICS_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="ANALYTICS_ID" baseTableName="INTERVIEW_SESSION_ENTITY"
+                                 constraintName="FK_INTERVIEW_SESSION_ENTITY_ON_ANALYTICS" referencedColumnNames="ID"
+                                 referencedTableName="STORAGE_OBJECT_ENTITY"/>
+    </changeSet>
+    <changeSet id="18" author="hunty-hr">
+        <createIndex indexName="IDX_INTERVIEW_SESSION_ENTITY_APPLICATION" tableName="INTERVIEW_SESSION_ENTITY">
+            <column name="APPLICATION_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="APPLICATION_ID" baseTableName="INTERVIEW_SESSION_ENTITY"
+                                 constraintName="FK_INTERVIEW_SESSION_ENTITY_ON_APPLICATION" referencedColumnNames="ID"
+                                 referencedTableName="APPLICATION_ENTITY"/>
+    </changeSet>
+    <changeSet id="19" author="hunty-hr">
+        <createIndex indexName="IDX_INTERVIEW_SESSION_ENTITY_SCENARIO" tableName="INTERVIEW_SESSION_ENTITY">
+            <column name="SCENARIO_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="SCENARIO_ID" baseTableName="INTERVIEW_SESSION_ENTITY" constraintName="FK_INTERVIEW_SESSION_ENTITY_ON_SCENARIO"
+                                 referencedColumnNames="ID" referencedTableName="INTERVIEW_SCENARIO_ENTITY"/>
+    </changeSet>
+    <changeSet id="20" author="hunty-hr">
+        <createIndex indexName="IDX_INTERVIEW_SESSION_ENTITY_TRANSCRIPTION" tableName="INTERVIEW_SESSION_ENTITY">
+            <column name="TRANSCRIPTION_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="TRANSCRIPTION_ID" baseTableName="INTERVIEW_SESSION_ENTITY"
+                                 constraintName="FK_INTERVIEW_SESSION_ENTITY_ON_TRANSCRIPTION" referencedColumnNames="ID"
+                                 referencedTableName="STORAGE_OBJECT_ENTITY"/>
+    </changeSet>
+    <changeSet id="21" author="hunty-hr">
+        <createIndex indexName="IDX_QUESTION_TEMPLATE_ENTITY_INTERVIEW_SCENARIO_ENTITY" tableName="QUESTION_TEMPLATE_ENTITY">
+            <column name="INTERVIEW_SCENARIO_ENTITY_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="INTERVIEW_SCENARIO_ENTITY_ID" baseTableName="QUESTION_TEMPLATE_ENTITY"
+                                 constraintName="FK_QUESTION_TEMPLATE_ENTITY_ON_INTERVIEW_SCENARIO_ENTITY" referencedColumnNames="ID"
+                                 referencedTableName="INTERVIEW_SCENARIO_ENTITY"/>
+    </changeSet>
+    <changeSet id="22" author="hunty-hr">
+        <createIndex indexName="IDX_RESUME_SKILL_ENTITY_RESUME_VERSION_ENTITY" tableName="RESUME_SKILL_ENTITY">
+            <column name="RESUME_VERSION_ENTITY_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="RESUME_VERSION_ENTITY_ID" baseTableName="RESUME_SKILL_ENTITY"
+                                 constraintName="FK_RESUME_SKILL_ENTITY_ON_RESUME_VERSION_ENTITY" referencedColumnNames="ID"
+                                 referencedTableName="RESUME_VERSION_ENTITY"/>
+    </changeSet>
+    <changeSet id="23" author="hunty-hr">
+        <createIndex indexName="IDX_RESUME_VERSION_ENTITY_FILE" tableName="RESUME_VERSION_ENTITY">
+            <column name="FILE_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="FILE_ID" baseTableName="RESUME_VERSION_ENTITY" constraintName="FK_RESUME_VERSION_ENTITY_ON_FILE"
+                                 referencedColumnNames="ID" referencedTableName="STORAGE_OBJECT_ENTITY"/>
+    </changeSet>
+    <changeSet id="24" author="hunty-hr">
+        <createIndex indexName="IDX_VACANCY_ENTITY_SCENARIO" tableName="VACANCY_ENTITY">
+            <column name="SCENARIO_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="SCENARIO_ID" baseTableName="VACANCY_ENTITY" constraintName="FK_VACANCY_ENTITY_ON_SCENARIO"
+                                 referencedColumnNames="ID" referencedTableName="INTERVIEW_SCENARIO_ENTITY"/>
+    </changeSet>
+    <changeSet id="25" author="hunty-hr">
+        <createIndex indexName="IDX_VACANCY_PIPELINE_STAGE_ENTITY_VACANCY_ENTITY" tableName="VACANCY_PIPELINE_STAGE_ENTITY">
+            <column name="VACANCY_ENTITY_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="VACANCY_ENTITY_ID" baseTableName="VACANCY_PIPELINE_STAGE_ENTITY"
+                                 constraintName="FK_VACANCY_PIPELINE_STAGE_ENTITY_ON_VACANCY_ENTITY" referencedColumnNames="ID"
+                                 referencedTableName="VACANCY_ENTITY"/>
+    </changeSet>
+    <changeSet id="26" author="hunty-hr">
+        <dropColumn columnName="S3_KEY" tableName="RESUME_VERSION_ENTITY"/>
+    </changeSet>
+</databaseChangeLog>
