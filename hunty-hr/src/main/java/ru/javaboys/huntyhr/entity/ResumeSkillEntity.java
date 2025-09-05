@@ -1,9 +1,9 @@
 package ru.javaboys.huntyhr.entity;
 
-import java.time.LocalDate;
 import java.util.UUID;
 
 import io.jmix.core.entity.annotation.JmixGeneratedValue;
+import io.jmix.core.metamodel.annotation.InstanceName;
 import io.jmix.core.metamodel.annotation.JmixEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -15,54 +15,23 @@ import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @JmixEntity
-@Table(name = "RESUME_EXPERIENCE_ENTITY", indexes = {
-        @Index(name = "IDX_RESUME_EXPERIENCE_ENTITY_RESUME_VERSION_ENTITY", columnList = "RESUME_VERSION_ENTITY_ID"),
-        @Index(name = "IDX_RESUME_EXPERIENCE_ENTITY_COMPANY", columnList = "COMPANY_ID")
+@Table(name = "RESUME_SKILL_ENTITY", indexes = {
+        @Index(name = "IDX_RESUME_SKILL_ENTITY_RESUME_VERSION_ENTITY", columnList = "RESUME_VERSION_ENTITY_ID")
 })
 @Entity
-public class ResumeExperienceEntity {
+public class ResumeSkillEntity {
     @JmixGeneratedValue
     @Column(name = "ID", nullable = false)
     @Id
     private UUID id;
 
+    @InstanceName
+    @Column(name = "NAME")
+    private String name;
+
     @JoinColumn(name = "RESUME_VERSION_ENTITY_ID")
     @ManyToOne(fetch = FetchType.LAZY)
     private ResumeVersionEntity resumeVersionEntity;
-
-    @JoinColumn(name = "COMPANY_ID")
-    @ManyToOne(fetch = FetchType.LAZY)
-    private CompanyEntity company;
-
-    @Column(name = "START_AT")
-    private LocalDate startAt;
-
-    @Column(name = "END_DATE")
-    private LocalDate endDate;
-
-    public LocalDate getEndDate() {
-        return endDate;
-    }
-
-    public void setEndDate(LocalDate endDate) {
-        this.endDate = endDate;
-    }
-
-    public LocalDate getStartAt() {
-        return startAt;
-    }
-
-    public void setStartAt(LocalDate startAt) {
-        this.startAt = startAt;
-    }
-
-    public CompanyEntity getCompany() {
-        return company;
-    }
-
-    public void setCompany(CompanyEntity company) {
-        this.company = company;
-    }
 
     public ResumeVersionEntity getResumeVersionEntity() {
         return resumeVersionEntity;
@@ -70,6 +39,14 @@ public class ResumeExperienceEntity {
 
     public void setResumeVersionEntity(ResumeVersionEntity resumeVersionEntity) {
         this.resumeVersionEntity = resumeVersionEntity;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
     }
 
     public UUID getId() {

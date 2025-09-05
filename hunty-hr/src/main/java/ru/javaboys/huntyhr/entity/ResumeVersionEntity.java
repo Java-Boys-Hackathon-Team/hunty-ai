@@ -15,11 +15,13 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.OneToMany;
+import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 
 @JmixEntity
 @Table(name = "RESUME_VERSION_ENTITY", indexes = {
-        @Index(name = "IDX_RESUME_VERSION_ENTITY_RESUME", columnList = "CANDIDATE_ID")
+        @Index(name = "IDX_RESUME_VERSION_ENTITY_RESUME", columnList = "CANDIDATE_ID"),
+        @Index(name = "IDX_RESUME_VERSION_ENTITY_FILE", columnList = "FILE_ID")
 })
 @Entity
 public class ResumeVersionEntity {
@@ -45,12 +47,31 @@ public class ResumeVersionEntity {
     @Lob
     private String sourceUrl;
 
-    @Column(name = "S3_KEY")
-    @Lob
-    private String s3Key;
+    @JoinColumn(name = "FILE_ID")
+    @OneToOne(fetch = FetchType.LAZY)
+    private StorageObjectEntity file;
 
     @OneToMany(mappedBy = "resumeVersionEntity")
     private List<ResumeExperienceEntity> experience;
+
+    @OneToMany(mappedBy = "resumeVersionEntity")
+    private List<ResumeSkillEntity> skills;
+
+    public List<ResumeSkillEntity> getSkills() {
+        return skills;
+    }
+
+    public void setSkills(List<ResumeSkillEntity> skills) {
+        this.skills = skills;
+    }
+
+    public StorageObjectEntity getFile() {
+        return file;
+    }
+
+    public void setFile(StorageObjectEntity file) {
+        this.file = file;
+    }
 
     public List<EducationEntity> getEducation() {
         return education;
@@ -90,14 +111,6 @@ public class ResumeVersionEntity {
 
     public void setSourceUrl(String source) {
         this.sourceUrl = source;
-    }
-
-    public String getS3Key() {
-        return s3Key;
-    }
-
-    public void setS3Key(String s3Key) {
-        this.s3Key = s3Key;
     }
 
     public ResumeSourceType getSourceType() {

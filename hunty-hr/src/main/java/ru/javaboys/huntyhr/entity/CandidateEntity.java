@@ -33,6 +33,50 @@ public class CandidateEntity {
     @Column(name = "SEX")
     private String sex;
 
+    @Column(name = "EMAIL")
+    private String email;
+
+    @Column(name = "PHONE")
+    private String phone;
+
+    @Column(name = "TELEGRAM")
+    private String telegram;
+
+    @Column(name = "LINKEDIN")
+    private String linkedin;
+
+    public String getLinkedin() {
+        return linkedin;
+    }
+
+    public void setLinkedin(String linkedin) {
+        this.linkedin = linkedin;
+    }
+
+    public String getTelegram() {
+        return telegram;
+    }
+
+    public void setTelegram(String telegram) {
+        this.telegram = telegram;
+    }
+
+    public String getPhone() {
+        return phone;
+    }
+
+    public void setPhone(String phone) {
+        this.phone = phone;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
     public SexEnum getSex() {
         return sex == null ? null : SexEnum.fromId(sex);
     }
