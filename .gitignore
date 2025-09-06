@@ -247,5 +247,4 @@ Temporary Items
 .venv/
 poetry.lock
 pyproject.toml
-.jmix/
-/hunty-hr/src/main/frontend/generated/*
+/.env

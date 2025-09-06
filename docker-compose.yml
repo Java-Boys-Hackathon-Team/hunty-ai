@@ -1,0 +1,79 @@
+services:
+
+  hunty-hr:
+    build:
+      dockerfile: ./Dockerfile
+      context: hunty-hr
+    command: ["java", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005", "-Dconfig.file=/app/config/application-prod.properties", "-jar", "hunty-hr.jar"]
+    volumes:
+      - './src/main/resources/application-prod.properties:/app/config/application-prod.properties'
+      - ./sources:/app/sources
+    restart: always
+    container_name: hunty-hr
+    ports:
+      - "8083:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - PG_DATASOURCE_URL=jdbc:postgresql://hunty-hr-db:5432/huntyhr
+      - PG_NAME=pgadmin
+      - PG_PASS=pgadmin
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:192.168.88.151"
+    tty: true
+    depends_on:
+      - hunty-hr-db
+
+  hunty-hr-db:
+    build:
+      dockerfile: ./Dockerfile
+      context: postgres
+    restart: always
+    container_name: hunty-hr-db
+    ports:
+      - "25435:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./postgres/postgresql.conf:/etc/postgresql/postgresql.conf
+    environment:
+      - POSTGRES_USER=pgadmin
+      - POSTGRES_PASSWORD=pgadmin
+    command: postgres -c config_file=/etc/postgresql/postgresql.conf
+
+  pgadmin:
+    image: dpage/pgadmin4
+    restart: always
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "kuramshin.py@yandex.ru"
+      PGADMIN_DEFAULT_PASSWORD: "admin"
+      PGADMIN_LISTEN_PORT: 80
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    ports:
+      - "5053:80"
+    depends_on:
+      - hunty-hr-db
+
+  # MinIO Console http://localhost:29003/
+  hunty-hr-s3:
+    image: bitnami/minio
+    container_name: hunty-hr-s3
+    ports:
+      - "29002:9000"
+      - "29003:9001"
+    restart: always
+    volumes:
+      - minio_data_volume:/bitnami/minio/data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+      MINIO_REGION_NAME: ru-mos
+      MINIO_DEFAULT_BUCKETS: 'files,public:public'
+
+volumes:
+  postgres_data:
+  pgadmin_data:
+    driver: local
+  minio_data_volume:
+    driver: local
