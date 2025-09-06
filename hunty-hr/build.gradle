@@ -23,11 +23,6 @@ repositories {
 }
 
 dependencies {
-    implementation 'io.jmix.awsfs:jmix-awsfs-starter'
-    implementation 'software.amazon.awssdk:s3:2.33.4'
-
-    implementation 'io.jmix.translations:jmix-translations-ru'
-
     implementation 'io.jmix.core:jmix-core-starter'
     implementation 'io.jmix.data:jmix-eclipselink-starter'
     implementation 'io.jmix.security:jmix-security-starter'
@@ -42,6 +37,8 @@ dependencies {
 
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
+    implementation 'io.jmix.translations:jmix-translations-ru'
+
     implementation 'org.postgresql:postgresql'
 
     // Lombok
@@ -50,6 +47,13 @@ dependencies {
     annotationProcessor 'org.projectlombok:lombok'
     testCompileOnly 'org.projectlombok:lombok'
     testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // S3
+    // Работа с S3 в стиле Jmix FileStorage
+    implementation 'io.jmix.awsfs:jmix-awsfs-starter'
+
+    // Работа с S3 напрямую через AWS SDK v2
+    implementation 'software.amazon.awssdk:s3:2.33.4'
 
     testImplementation('org.springframework.boot:spring-boot-starter-test') {
         exclude group: 'org.junit.vintage', module: 'junit-vintage-engine'
