@@ -26,9 +26,10 @@ jobs:
           distribution: 'adopt'
 
       - name: Build with Gradle
+        working-directory: ./hunty-hr
         run: |
-          hunty-hr/gradlew clean build -x test
-          hunty-hr/gradlew -Pvaadin.productionMode=true bootJar -x test
+          ./gradlew clean build -x test
+          ./gradlew -Pvaadin.productionMode=true bootJar -x test
 
   deploy:
     needs: build
