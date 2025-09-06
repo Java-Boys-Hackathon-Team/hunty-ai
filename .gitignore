@@ -247,3 +247,4 @@ Temporary Items
 .venv/
 poetry.lock
 pyproject.toml
+/.env
