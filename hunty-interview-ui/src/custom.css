@@ -1,0 +1,708 @@
+
+:root {
+    --bg: #0f1216; /* deep blue-gray */
+    --panel: #131821; /* slightly lighter */
+    --text: #e7ecf3; /* soft off-white */
+    --muted: #aab4c3;
+    --accent: #6dd5c5; /* mint aqua */
+    --accent-soft: #23343e; /* muted teal shadow */
+    --danger: #ff6b6b;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+    --radius: 16px;
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html, body, #root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--text);
+    font: 16px/1.5 system-ui, -apple-system, Segoe UI, Roboto, Inter, Arial, sans-serif;
+}
+
+.page {
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    min-height: 100vh;
+}
+
+/* Top bar */
+.topbar {
+    position: sticky;
+    top: 0;
+    background: rgba(19, 24, 33, 0.9);
+    backdrop-filter: blur(8px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    z-index: 10;
+}
+
+.topbar-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 16px;
+}
+
+.connection {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #ffad42;
+    box-shadow: 0 0 0 0 rgba(255, 173, 66, 0.7);
+    animation: pulse 2s infinite;
+}
+
+.connection.ok {
+    background: #58d38c;
+    box-shadow: 0 0 0 0 rgba(88, 211, 140, 0.7);
+}
+
+.connection.bad {
+    background: #ff6b6b;
+    box-shadow: 0 0 0 0 rgba(255, 107, 107, 0.7);
+}
+
+@keyframes pulse {
+    to {
+        box-shadow: 0 0 0 12px rgba(0, 0, 0, 0)
+    }
+}
+
+/* Bottom bar */
+.bottombar {
+    position: sticky;
+    bottom: 0;
+    background: rgba(19, 24, 33, 0.9);
+    backdrop-filter: blur(8px);
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.bottombar-inner {
+    max-width: 1100px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    padding: 10px 16px;
+}
+
+/* Stage */
+.stage {
+    position: relative;
+}
+
+.stage.split {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+}
+
+@media (max-width: 960px) {
+    .stage.split {
+        grid-template-columns: 1fr;
+    }
+}
+
+/* Lobby */
+.lobby {
+    display: grid;
+    place-items: center;
+    padding: 24px;
+}
+
+.lobby-content {
+    width: 100%;
+    max-width: 1000px;
+    display: grid;
+    gap: 24px;
+}
+
+.welcome h1 {
+    margin: 0 0 8px;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+}
+
+.muted {
+    color: var(--muted);
+}
+
+.device-check h2 {
+    margin: 0;
+    font-size: 18px;
+    opacity: 0.9;
+}
+
+.device-row {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 16px;
+    margin-top: 12px;
+}
+
+@media (max-width: 720px) {
+    .device-row {
+        grid-template-columns: 1fr;
+    }
+}
+
+.device {
+    background: var(--panel);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: var(--radius);
+    padding: 16px;
+    box-shadow: var(--shadow);
+}
+
+.device-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-weight: 600;
+    margin-bottom: 12px;
+}
+
+.device-actions {
+    margin-top: 12px;
+}
+
+.vu {
+    position: relative;
+    width: 100%;
+    height: 8px;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    overflow: hidden;
+}
+
+.vu .bar {
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 100%;
+    transform-origin: left center;
+    background: linear-gradient(90deg, var(--accent), #8ad7ff);
+    transition: transform 120ms linear;
+}
+
+.vu.small {
+    width: 140px;
+    height: 6px;
+}
+
+.camera-preview.placeholder {
+    display: grid;
+    place-items: center;
+    background: repeating-linear-gradient(45deg, rgba(255, 255, 255, 0.03), rgba(255, 255, 255, 0.03) 10px, rgba(0, 0, 0, 0.03) 10px, rgba(0, 0, 0, 0.03) 20px);
+    border-radius: 10px;
+    color: var(--muted);
+    font-size: 14px;
+}
+
+/* Live panels */
+.live {
+    display: contents;
+}
+
+/* =======================
+   Live: camera layout & mic-float
+   ======================= */
+
+/* Центруем содержимое панели камеры и не даём видео растягиваться */
+.live .panel.camera {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    /* чуть воздуха по краям, чтобы видео не липло к границам */
+    padding: 16px;
+    overflow: hidden; /* чтобы плавающие элементы не выходили за рамку */
+}
+
+/* Видео в режиме Live — вписывание, а не растяжение */
+.live .panel.camera .camera-video {
+    width: auto;
+    height: auto;
+    max-width: min(92%, 880px); /* адаптивно, но не на всю ширину */
+    max-height: 80%;            /* и не на всю высоту панели */
+    object-fit: contain;        /* без обрезания картинки */
+    border-radius: 16px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+    background: #000;           /* чтобы были аккуратные поля по бокам при letterbox */
+}
+
+/* Закрепляем mic-float снизу по центру, поверх видео */
+.live .panel.camera .mic-float {
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+
+    /* «пилюля» с размытием, аккуратная и не кричащая */
+    padding: 8px 12px;
+    background: rgba(16, 16, 20, 0.55);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Инлайн VU-meter поменьше, чтобы не перекрикивал видео */
+.live .panel.camera .mic-float .vu.small {
+    width: 140px;
+    height: 8px;
+    border-radius: 999px;
+    overflow: hidden;
+    background: rgba(255, 255, 255, 0.12);
+}
+
+.live .panel.camera .mic-float .vu.small .bar {
+    height: 100%;
+    transform-origin: left center;
+    transition: transform 80ms linear;
+    background: linear-gradient(90deg, rgba(86, 202, 139, 0.9), rgba(86, 167, 235, 0.9));
+}
+
+/* Кнопка mute в «пилюле» — компактная */
+.live .panel.camera .mic-float .btn.ghost {
+    padding: 6px 10px;
+    border-radius: 10px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+/* Небольшая адаптация на узких экранах */
+@media (max-width: 860px) {
+    .live .panel.camera .camera-video {
+        max-width: 95%;
+        max-height: 70%;
+        border-radius: 12px;
+    }
+    .live .panel.camera .mic-float {
+        bottom: 14px;
+        gap: 10px;
+        padding: 6px 10px;
+    }
+    .live .panel.camera .mic-float .vu.small {
+        width: 120px;
+    }
+}
+
+.panel {
+    position: relative;
+    min-height: calc(100vh - 140px);
+    padding: 24px;
+}
+
+.panel.full {
+    grid-column: 1 / -1;
+}
+
+.panel.agent {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    background: radial-gradient(1200px 600px at 50% 0%, rgba(109, 213, 197, 0.08), transparent), var(--panel);
+    border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.panel.camera {
+    background: var(--panel);
+    display: grid;
+}
+
+.camera-video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border: none;
+}
+
+.mic-float {
+    position: absolute;
+    bottom: 45px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(6px);
+    padding: 6px 6px 6px 10px;
+    border-radius: 13px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.mic-float .btn {
+    border-radius: 8px;
+}
+
+/* Avatar visualization */
+.avatar {
+    display: grid;
+    place-items: center;
+}
+
+.aura {
+    width: clamp(220px, 30vw, 420px);
+    height: clamp(220px, 30vw, 420px);
+    border-radius: 50%;
+    position: relative;
+    display: grid;
+    place-items: center;
+    isolation: isolate; /* корректная композиция слоёв */
+}
+
+/* мягкое свечение вокруг - было ок, оставим с лёгким усилением */
+.aura::before {
+    content: '';
+    position: absolute;
+    inset: -10%;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 40%, rgba(109, 213, 197, 0.22), transparent 60%);
+    filter: blur(14px);
+    z-index: 0;
+}
+
+/* кольцевой "пульс" - без изменений */
+.pulse {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(109, 213, 197, 0.35);
+    box-shadow: inset 0 0 40px rgba(109, 213, 197, 0.15);
+    opacity: 0.85;
+}
+
+.pulse.on {
+    animation: pulseRing 1.8s ease-in-out infinite;
+}
+
+.pulse.off {
+    animation: none;
+    opacity: 0.45;
+}
+
+@keyframes pulseRing {
+    0% {
+        transform: scale(0.985);
+    }
+    50% {
+        transform: scale(1.02);
+    }
+    100% {
+        transform: scale(0.985);
+    }
+}
+
+/* Жидкая внутренняя волна - усиленная, с несколькими слоями и "дыханием" */
+.wave {
+    position: absolute;
+    inset: 12%;
+    border-radius: 50%;
+    overflow: hidden;
+    filter: saturate(1.12) contrast(1.08);
+    /* маска для придания глубины - мягкий виньеттинг */
+    mask-image: radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 0.7) 80%, rgba(0, 0, 0, 0) 100%);
+    -webkit-mask-image: radial-gradient(circle at 50% 45%, rgba(0, 0, 0, 1) 60%, rgba(0, 0, 0, 0.7) 80%, rgba(0, 0, 0, 0) 100%);
+}
+
+/* два независимых слоя + лёгкий шиммер сверху */
+.wave::before,
+.wave::after {
+    content: '';
+    position: absolute;
+    inset: -40%;
+    border-radius: 50%;
+    mix-blend-mode: screen;
+    opacity: 0.9;
+}
+
+/* слой L1: более контрастный, медленная прецессия + "дыхание" */
+.wave::before {
+    background: radial-gradient(35% 25% at 30% 35%, rgba(109, 213, 197, 0.28), transparent 60%),
+    radial-gradient(35% 25% at 70% 60%, rgba(138, 215, 255, 0.28), transparent 60%),
+    conic-gradient(from 0deg, rgba(109, 213, 197, 0.18), rgba(138, 215, 255, 0.20), rgba(109, 213, 197, 0.18));
+    filter: blur(6px);
+    transform-origin: 48% 52%;
+}
+
+/* слой L2: более мягкий, другая скорость/направление */
+.wave::after {
+    background: radial-gradient(40% 30% at 60% 40%, rgba(109, 213, 197, 0.20), transparent 60%),
+    radial-gradient(40% 30% at 40% 70%, rgba(138, 215, 255, 0.20), transparent 60%),
+    conic-gradient(from 90deg, rgba(109, 213, 197, 0.12), rgba(138, 215, 255, 0.14), rgba(109, 213, 197, 0.12));
+    filter: blur(10px);
+    transform-origin: 52% 48%;
+}
+
+/* дополнительный "шиммер" - тонкая световая рябь поверх */
+.wave::marker {
+    display: none
+}
+
+/* защита от странных UA-стилей */
+.wave > .shimmer {
+    content: '';
+    position: absolute;
+    inset: -60%;
+    border-radius: 50%;
+    pointer-events: none;
+    mix-blend-mode: soft-light;
+    background: radial-gradient(30% 20% at 50% 50%, rgba(255, 255, 255, 0.10), transparent 70%);
+    filter: blur(18px);
+}
+
+/* активное состояние - ощутимое движение */
+.wave.animate::before {
+    animation: drift1 10s linear infinite, breathe 4.5s ease-in-out infinite;
+}
+
+.wave.animate::after {
+    animation: drift2 16s linear infinite reverse, breathe 6s ease-in-out infinite reverse;
+}
+
+.wave.animate > .shimmer {
+    animation: shimmer 7s ease-in-out infinite;
+    opacity: .5;
+}
+
+/* пауза - замирает, но остаётся читаемой и живой */
+.wave.frozen::before,
+.wave.frozen::after {
+    animation: none;
+    opacity: 0.45;
+    filter: blur(8px) saturate(1.05);
+}
+
+.wave.frozen > .shimmer {
+    animation: none;
+    opacity: .25;
+}
+
+/* Анимации слоёв */
+@keyframes drift1 {
+    0% {
+        transform: rotate(0deg) scale(1.00) translateX(0%);
+    }
+    50% {
+        transform: rotate(180deg) scale(1.03) translateX(1.5%);
+    }
+    100% {
+        transform: rotate(360deg) scale(1.00) translateX(0%);
+    }
+}
+
+@keyframes drift2 {
+    0% {
+        transform: rotate(0deg) scale(1.02) translateY(0%);
+    }
+    50% {
+        transform: rotate(180deg) scale(0.99) translateY(-1.2%);
+    }
+    100% {
+        transform: rotate(360deg) scale(1.02) translateY(0%);
+    }
+}
+
+@keyframes breathe {
+    0% {
+        filter: blur(8px);
+    }
+    50% {
+        filter: blur(5px);
+    }
+    100% {
+        filter: blur(8px);
+    }
+}
+
+@keyframes shimmer {
+    0%, 100% {
+        transform: rotate(0deg) scale(1.00);
+        opacity: .35;
+    }
+    50% {
+        transform: rotate(180deg) scale(1.04);
+        opacity: .55;
+    }
+}
+
+/* уважение к предпочтениям пользователя */
+@media (prefers-reduced-motion: reduce) {
+    .wave.animate::before,
+    .wave.animate::after,
+    .wave > .shimmer {
+        animation: none !important;
+    }
+}
+
+/* Subtitles */
+.subs {
+    width: 100%;
+    max-width: 900px;
+    margin: 0 auto;
+    padding: 18px 20px;
+    border-radius: 14px;
+    background: rgba(0, 0, 0, 0.25);
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    box-shadow: var(--shadow);
+    align-self: end;
+}
+
+.subs .line {
+    opacity: 0.9;
+    margin: 2px 0;
+}
+
+.subs .line.partial {
+    opacity: 0.6;
+    font-style: italic;
+}
+
+/* Buttons */
+.btn {
+    --btn-bg: rgba(255, 255, 255, 0.06);
+    --btn-bd: rgba(255, 255, 255, 0.1);
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    border: 1px solid var(--btn-bd);
+    background: var(--btn-bg);
+    color: var(--text);
+    cursor: pointer;
+    transition: transform 0.05s ease, background 0.2s ease, border-color 0.2s ease;
+}
+
+.btn:hover {
+    transform: translateY(-1px);
+    background: rgba(255, 255, 255, 0.09);
+}
+
+.btn:active {
+    transform: translateY(0);
+}
+
+.btn.primary {
+    --btn-bg: linear-gradient(180deg, rgba(109, 213, 197, 0.35), rgba(109, 213, 197, 0.15));
+    --btn-bd: rgba(109, 213, 197, 0.35);
+}
+
+.btn.danger {
+    --btn-bg: linear-gradient(180deg, rgba(255, 107, 107, 0.22), rgba(255, 107, 107, 0.12));
+    --btn-bd: rgba(255, 107, 107, 0.35);
+}
+
+.btn.ghost {
+    --btn-bg: rgba(0, 0, 0, 0.25);
+    --btn-bd: rgba(255, 255, 255, 0.1);
+}
+
+.btn.toggle {
+    position: relative;
+    min-width: 200px;
+    justify-content: center;
+}
+
+.btn.toggle.off {
+    opacity: 0.7;
+}
+
+.btn .icon {
+    display: inline-grid;
+    place-items: center;
+}
+
+/* Microphone "lava" animation when active */
+.lava {
+    position: absolute;
+    inset: -2px;
+    z-index: -1;
+    border-radius: 12px;
+    background: radial-gradient(600px 200px at 0% 0%, rgba(109, 213, 197, 0.2), transparent 50%), radial-gradient(600px 200px at 100% 100%, rgba(138, 215, 255, 0.18), transparent 50%);
+    filter: blur(12px);
+    animation: lavaFlow 6s ease-in-out infinite alternate;
+}
+
+@keyframes lavaFlow {
+    0% {
+        transform: translateX(-2%);
+    }
+    100% {
+        transform: translateX(2%);
+    }
+}
+
+/* Modal */
+.modal {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.65);
+    display: grid;
+    place-items: center;
+    z-index: 20;
+}
+
+.modal-card {
+    width: min(560px, 92vw);
+    background: var(--panel);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 18px;
+    padding: 24px;
+    box-shadow: var(--shadow);
+}
+
+.modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 12px;
+    margin-top: 16px;
+}
+
+/* Loaders / states */
+.page.loading, .page.error {
+    display: grid;
+    place-items: center;
+    min-height: 100vh;
+}
+
+.loader {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    color: var(--muted);
+}
+
+.spin {
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg)
+    }
+}
+
+.error-card {
+    display: flex;
+    gap: 14px;
+    align-items: flex-start;
+    background: var(--panel);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 18px;
+    box-shadow: var(--shadow);
+    max-width: 560px;
+}
