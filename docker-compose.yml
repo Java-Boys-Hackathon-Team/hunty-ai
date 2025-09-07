@@ -1,63 +1,63 @@
 services:
 
-  # hunty-hr:
-  #   build:
-  #     dockerfile: ./Dockerfile
-  #     context: hunty-hr
-  #   command: ["java", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005", "-Dconfig.file=/app/config/application-prod.properties", "-jar", "hunty-hr.jar"]
-  #   volumes:
-  #     - './src/main/resources/application-prod.properties:/app/config/application-prod.properties'
-  #     - ./sources:/app/sources
-  #   restart: always
-  #   container_name: hunty-hr
-  #   ports:
-  #     - "8083:8080"
-  #   environment:
-  #     - SPRING_PROFILES_ACTIVE=prod
-  #     - PG_DATASOURCE_URL=jdbc:postgresql://hunty-hr-db:5432/huntyhr
-  #     - PG_NAME=pgadmin
-  #     - PG_PASS=pgadmin
-  #   env_file:
-  #     - .env
-  #   extra_hosts:
-  #     - "host.docker.internal:192.168.88.151"
-  #   tty: true
-  #   depends_on:
-  #     - hunty-hr-db
+  hunty-hr:
+    build:
+      dockerfile: ./Dockerfile
+      context: hunty-hr
+    command: ["java", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005", "-Dconfig.file=/app/config/application-prod.properties", "-jar", "hunty-hr.jar"]
+    volumes:
+      - './src/main/resources/application-prod.properties:/app/config/application-prod.properties'
+      - ./sources:/app/sources
+    restart: always
+    container_name: hunty-hr
+    ports:
+      - "8083:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - PG_DATASOURCE_URL=jdbc:postgresql://hunty-hr-db:5432/huntyhr
+      - PG_NAME=pgadmin
+      - PG_PASS=pgadmin
+    env_file:
+      - .env
+    extra_hosts:
+      - "host.docker.internal:192.168.88.151"
+    tty: true
+    depends_on:
+      - hunty-hr-db
 
-  # hunty-interview-ui:
-  #   build:
-  #     context: hunty-interview-ui
-  #     dockerfile: ./Dockerfile
-  #   container_name: hunty-interview-ui
-  #   restart: always
-  #   ports:
-  #     - "8085:80"
-  #   depends_on:
-  #     - hunty-interview-backend
+  hunty-interview-ui:
+    build:
+      context: hunty-interview-ui
+      dockerfile: ./Dockerfile
+    container_name: hunty-interview-ui
+    restart: always
+    ports:
+      - "8085:80"
+    depends_on:
+      - hunty-interview-backend
 
-  # hunty-interview-backend:
-  #   build:
-  #     context: hunty-interview-backend
-  #     dockerfile: ./Dockerfile
-  #   container_name: hunty-interview-backend
-  #   restart: always
-  #   depends_on:
-  #     - hunty-hr-db
-  #     - hunty-hr-s3
-  #   environment:
-  #     - DB_HOST=hunty-hr-db
-  #     - DB_PORT=5432
-  #     - DB_NAME=huntyhr
-  #     - DB_USER=pgadmin
-  #     - DB_PASSWORD=pgadmin
-  #     - S3_ENDPOINT_URL=http://hunty-hr-s3:9000
-  #     - S3_REGION=ru-mos
-  #     - S3_ACCESS_KEY_ID=minioadmin
-  #     - S3_SECRET_ACCESS_KEY=minioadmin
-  #     - S3_BUCKET=files
-  #   ports:
-  #     - "8084:8000"
+  hunty-interview-backend:
+    build:
+      context: hunty-interview-backend
+      dockerfile: ./Dockerfile
+    container_name: hunty-interview-backend
+    restart: always
+    depends_on:
+      - hunty-hr-db
+      - hunty-hr-s3
+    environment:
+      - DB_HOST=hunty-hr-db
+      - DB_PORT=5432
+      - DB_NAME=huntyhr
+      - DB_USER=pgadmin
+      - DB_PASSWORD=pgadmin
+      - S3_ENDPOINT_URL=http://hunty-hr-s3:9000
+      - S3_REGION=ru-mos
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
+      - S3_BUCKET=files
+    ports:
+      - "8084:8000"
 
   hunty-hr-db:
     build:

@@ -1,105 +1,75 @@
-# app/video_processing/process.py
 import asyncio
-from pathlib import Path
-import cv2
-import os
 import gc
-import tempfile
+import logging
+import os
+from pathlib import Path
 
+import cv2
 
-# Глобальные переменные для кэширования моделей
+logger = logging.getLogger("video_processing")
+
 face_cascade = None
 
 
 def load_models():
-    """Загружает модели один раз при старте приложения"""
     global face_cascade
     if face_cascade is None:
-        face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
+        face_cascade = cv2.CascadeClassifier(
+            cv2.data.haarcascades + "haarcascade_frontalface_default.xml"
+        )
         if face_cascade.empty():
             raise Exception("Не удалось загрузить модель для обнаружения лиц")
+        logger.info("Face detection model loaded successfully")
 
 
 async def repair_webm_file(input_path: str, output_path: str) -> bool:
-    """
-    Восстанавливает WebM файл с помощью FFmpeg
-    """
     try:
-        cmd = [
-            'ffmpeg', '-i', input_path, '-c', 'copy', '-y', output_path
-        ]
-        
+        cmd = ["ffmpeg", "-i", input_path, "-c", "copy", "-y", output_path]
         process = await asyncio.create_subprocess_exec(
-            *cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE
+            *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
         )
-        
         stdout, stderr = await process.communicate()
-        
+
         if process.returncode == 0:
             return os.path.exists(output_path) and os.path.getsize(output_path) > 0
         else:
-            print(f"Ошибка FFmpeg: {stderr.decode()}")
+            logger.error(f"FFmpeg error: {stderr.decode()}")
             return False
-            
     except Exception as e:
-        print(f"Ошибка при восстановлении файла: {e}")
+        logger.exception(f"Ошибка при восстановлении файла {input_path}")
         return False
 
 
 async def finalize_video(session_id: str) -> str:
-    """
-    Перепаковывает raw видео в seekable WebM.
-    Возвращает путь к финальному видео (тот же файл).
-    """
     file_path = f"/tmp/interview_video/{session_id}/recording.webm"
-
     if not os.path.exists(file_path):
         raise FileNotFoundError(f"Video not found for session {session_id}")
 
     temp_path = f"/tmp/interview_video/{session_id}/recording_temp.webm"
-
-    # FFmpeg перепаковывает в новый файл
-    cmd = [
-        "ffmpeg",
-        "-i", file_path,
-        "-c", "copy",
-        "-y",
-        temp_path
-    ]
+    cmd = ["ffmpeg", "-i", file_path, "-c", "copy", "-y", temp_path]
 
     process = await asyncio.create_subprocess_exec(
-        *cmd,
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE
+        *cmd, stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE
     )
     stdout, stderr = await process.communicate()
 
     if process.returncode != 0:
-        print(f"FFmpeg error: {stderr.decode()}")
+        logger.error(f"FFmpeg error: {stderr.decode()}")
         raise RuntimeError(f"Failed to finalize video for session {session_id}")
 
-    # Заменяем исходный файл перепакованным
     os.replace(temp_path, file_path)
-
     return file_path
 
 
 async def process_video_balanced(file_path: str, fps_sample: int = 1) -> dict:
-    """
-    Анализ видео с выборкой кадров для баланса скорости и точности.
-
-    Возвращает словарь с подробной статистикой анализа.
-    """
     try:
         if not os.path.exists(file_path):
-            print(f"Файл не найден: {file_path}")
+            logger.warning(f"File not found: {file_path}")
             return {"error": "file_not_found"}
 
         cap = cv2.VideoCapture(file_path)
         if not cap.isOpened():
-            print(f"Не удалось открыть видео: {file_path}")
+            logger.warning(f"Cannot open video: {file_path}")
             return {"error": "cannot_open_video"}
 
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
@@ -109,8 +79,8 @@ async def process_video_balanced(file_path: str, fps_sample: int = 1) -> dict:
         analyzed_frames = 0
         valid_frames = 0
         multi_face_frames = 0
-
         frame_idx = 0
+
         while True:
             ret, frame = cap.read()
             if not ret:
@@ -137,7 +107,7 @@ async def process_video_balanced(file_path: str, fps_sample: int = 1) -> dict:
         cap.release()
 
         if analyzed_frames == 0:
-            print("Нет кадров для анализа")
+            logger.warning("No frames to analyze")
             return {"error": "no_frames"}
 
         valid_ratio = valid_frames / analyzed_frames
@@ -153,20 +123,15 @@ async def process_video_balanced(file_path: str, fps_sample: int = 1) -> dict:
             "is_valid": is_valid,
         }
 
-        print(f"Video analysis result: {result}")
+        logger.info(f"Video analysis result: {result}")
         return result
 
     except Exception as e:
-        print(f"Ошибка обработки видео: {e}")
+        logger.exception(f"Error processing video {file_path}")
         return {"error": str(e)}
 
 
 def save_video_chunk(data: bytes, session_id: str) -> str:
-    """
-    Save video chunk to /tmp/interview_video/{session_id}/recording.webm
-    Appends data to existing file if it exists
-    Returns the path to the saved file.
-    """
     base_dir = Path(f"/tmp/interview_video/{session_id}")
     base_dir.mkdir(parents=True, exist_ok=True)
 
@@ -176,4 +141,5 @@ def save_video_chunk(data: bytes, session_id: str) -> str:
     with open(filepath, "ab") as f:
         f.write(data)
 
+    logger.debug(f"Saved video chunk to {filepath}")
     return str(filepath)

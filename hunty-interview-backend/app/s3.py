@@ -1,14 +1,15 @@
-from typing import Optional
-
 import asyncio
+import logging
+
 import boto3
 from botocore.config import Config
 
 from .config import settings
 
+logger = logging.getLogger("s3")
+
 
 def get_s3_client():
-    # Keep short timeouts to fail fast on startup
     cfg = Config(connect_timeout=2, read_timeout=3, retries={"max_attempts": 1})
     return boto3.client(
         "s3",
@@ -21,17 +22,17 @@ def get_s3_client():
 
 
 def check_s3() -> None:
-    """Ensure S3 is reachable and the configured bucket is accessible."""
     client = get_s3_client()
-    # Using head_bucket is cheaper than list_buckets
-    client.head_bucket(Bucket=settings.s3.bucket)
+    try:
+        client.head_bucket(Bucket=settings.s3.bucket)
+        logger.info(f"S3 bucket {settings.s3.bucket} is accessible")
+    except Exception:
+        logger.exception(f"S3 bucket {settings.s3.bucket} is not accessible")
+        raise
 
 
 async def upload_file(file_path: str, key: str):
-    """
-    Асинхронная обёртка для загрузки файла в S3.
-    """
     loop = asyncio.get_event_loop()
     s3 = get_s3_client()
     await loop.run_in_executor(None, s3.upload_file, file_path, settings.s3.bucket, key)
-    print(f"Uploaded {file_path} to s3://{settings.s3.bucket}/{key}")
+    logger.info(f"Uploaded {file_path} to s3://{settings.s3.bucket}/{key}")
