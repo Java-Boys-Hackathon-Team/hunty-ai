@@ -6,8 +6,10 @@ import os
 import gc
 import tempfile
 
+
 # Глобальные переменные для кэширования моделей
 face_cascade = None
+
 
 def load_models():
     """Загружает модели один раз при старте приложения"""
@@ -16,6 +18,7 @@ def load_models():
         face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
         if face_cascade.empty():
             raise Exception("Не удалось загрузить модель для обнаружения лиц")
+
 
 async def repair_webm_file(input_path: str, output_path: str) -> bool:
     """
@@ -43,6 +46,7 @@ async def repair_webm_file(input_path: str, output_path: str) -> bool:
     except Exception as e:
         print(f"Ошибка при восстановлении файла: {e}")
         return False
+
 
 async def finalize_video(session_id: str) -> str:
     """
@@ -82,21 +86,15 @@ async def finalize_video(session_id: str) -> str:
     return file_path
 
 
-async def process_video(file_path: str):
+async def process_video_balanced(file_path: str, fps_sample: int = 1):
     """
-    Анализирует видео после завершения записи.
-    Проверяет наличие одного человека в кадре.
-    file_path: путь к видеофайлу
+    Анализ видео с выборкой кадров для баланса скорости и точности.
+    
+    fps_sample: сколько кадров в секунду видео анализировать
     """
     try:
         if not os.path.exists(file_path):
             print(f"Файл не найден: {file_path}")
-            return False
-
-        file_size = os.path.getsize(file_path)
-        print(f"Размер файла: {file_size} bytes")
-        if file_size < 1024:
-            print(f"Файл слишком мал для анализа: {file_size} bytes")
             return False
 
         cap = cv2.VideoCapture(file_path)
@@ -105,46 +103,51 @@ async def process_video(file_path: str):
             return False
 
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        if total_frames <= 0:
-            total_frames = 0
-            while True:
-                ret, _ = cap.read()
-                if not ret:
-                    break
-                total_frames += 1
-            cap.release()
-            cap = cv2.VideoCapture(file_path)
-            
-        if total_frames <= 0:
-            print(f"Видео не содержит кадров: {file_path}")
-            return False
+        video_fps = cap.get(cv2.CAP_PROP_FPS) or 30  # default 30 FPS если не определено
+        frame_interval = max(1, int(video_fps / fps_sample))
 
-        frame_interval = max(1, total_frames // 5)
         analyzed_frames = 0
         valid_frames = 0
-        
-        for frame_idx in range(0, total_frames, frame_interval):
-            cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
+        multi_face_frames = 0
+
+        frame_idx = 0
+        while True:
             ret, frame = cap.read()
             if not ret:
-                continue
-                
-            analyzed_frames += 1
-            small_frame = cv2.resize(frame, (320, 240))
-            gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
-            faces = face_cascade.detectMultiScale(gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30))
-            if len(faces) == 1:
-                valid_frames += 1
-            del small_frame, gray, frame
-            gc.collect()
+                break
+
+            if frame_idx % frame_interval == 0:
+                small_frame = cv2.resize(frame, (320, 240))
+                gray = cv2.cvtColor(small_frame, cv2.COLOR_BGR2GRAY)
+                faces = face_cascade.detectMultiScale(
+                    gray, scaleFactor=1.1, minNeighbors=5, minSize=(30, 30)
+                )
+
+                analyzed_frames += 1
+                if len(faces) == 1:
+                    valid_frames += 1
+                elif len(faces) > 1:
+                    multi_face_frames += 1
+
+                del small_frame, gray
+                gc.collect()
+
+            frame_idx += 1
 
         cap.release()
 
-        if analyzed_frames > 0 and valid_frames / analyzed_frames >= 0.7:
-            print(f"✓ Обнаружен один человек в {valid_frames}/{analyzed_frames} кадрах")
+        if analyzed_frames == 0:
+            print("Нет кадров для анализа")
+            return False
+
+        valid_ratio = valid_frames / analyzed_frames
+        multi_face_ratio = multi_face_frames / analyzed_frames
+
+        if valid_ratio >= 0.7 and multi_face_ratio <= 0.05:
+            print(f"✓ Видео валидно: {valid_frames}/{analyzed_frames} кадров с одним лицом, {multi_face_frames} кадров с >1 лицом")
             return True
         else:
-            print(f"✗ Проблема - лиц не обнаружено или обнаружено несколько. Valid: {valid_frames}/{analyzed_frames}")
+            print(f"✗ Видео невалидно: {valid_frames}/{analyzed_frames} кадров с одним лицом, {multi_face_frames} кадров с >1 лицом")
             return False
 
     except Exception as e:

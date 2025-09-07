@@ -13,7 +13,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.db import check_db
 from app.s3 import check_s3
-from app.video_processing.process import save_video_chunk, process_video, load_models, finalize_video
+from app.video_processing.process import save_video_chunk, process_video_balanced, load_models, finalize_video
 
 # Global thread pool for blocking operations
 executor = ThreadPoolExecutor(max_workers=4)
@@ -156,7 +156,7 @@ async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
         print(f"Session {session_id}: Final video ready at {final_video_path}")
 
         # Передаём путь к видео в анализ
-        analysis_result = await process_video(final_video_path)
+        analysis_result = await process_video_balanced(final_video_path)
         print(f"Session {session_id}: Analysis result: {analysis_result}")
 
     except Exception as e:
