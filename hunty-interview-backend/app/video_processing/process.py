@@ -86,24 +86,24 @@ async def finalize_video(session_id: str) -> str:
     return file_path
 
 
-async def process_video_balanced(file_path: str, fps_sample: int = 1):
+async def process_video_balanced(file_path: str, fps_sample: int = 1) -> dict:
     """
     Анализ видео с выборкой кадров для баланса скорости и точности.
-    
-    fps_sample: сколько кадров в секунду видео анализировать
+
+    Возвращает словарь с подробной статистикой анализа.
     """
     try:
         if not os.path.exists(file_path):
             print(f"Файл не найден: {file_path}")
-            return False
+            return {"error": "file_not_found"}
 
         cap = cv2.VideoCapture(file_path)
         if not cap.isOpened():
             print(f"Не удалось открыть видео: {file_path}")
-            return False
+            return {"error": "cannot_open_video"}
 
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-        video_fps = cap.get(cv2.CAP_PROP_FPS) or 30  # default 30 FPS если не определено
+        video_fps = cap.get(cv2.CAP_PROP_FPS) or 30
         frame_interval = max(1, int(video_fps / fps_sample))
 
         analyzed_frames = 0
@@ -138,21 +138,27 @@ async def process_video_balanced(file_path: str, fps_sample: int = 1):
 
         if analyzed_frames == 0:
             print("Нет кадров для анализа")
-            return False
+            return {"error": "no_frames"}
 
         valid_ratio = valid_frames / analyzed_frames
         multi_face_ratio = multi_face_frames / analyzed_frames
+        is_valid = valid_ratio >= 0.7 and multi_face_ratio <= 0.05
 
-        if valid_ratio >= 0.7 and multi_face_ratio <= 0.05:
-            print(f"✓ Видео валидно: {valid_frames}/{analyzed_frames} кадров с одним лицом, {multi_face_frames} кадров с >1 лицом")
-            return True
-        else:
-            print(f"✗ Видео невалидно: {valid_frames}/{analyzed_frames} кадров с одним лицом, {multi_face_frames} кадров с >1 лицом")
-            return False
+        result = {
+            "analyzed_frames": analyzed_frames,
+            "valid_frames": valid_frames,
+            "multi_face_frames": multi_face_frames,
+            "valid_ratio": round(valid_ratio, 2),
+            "multi_face_ratio": round(multi_face_ratio, 2),
+            "is_valid": is_valid,
+        }
+
+        print(f"Video analysis result: {result}")
+        return result
 
     except Exception as e:
         print(f"Ошибка обработки видео: {e}")
-        return False
+        return {"error": str(e)}
 
 
 def save_video_chunk(data: bytes, session_id: str) -> str:

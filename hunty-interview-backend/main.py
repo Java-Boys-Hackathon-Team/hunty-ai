@@ -12,7 +12,7 @@ from starlette import status
 from starlette.middleware.cors import CORSMiddleware
 
 from app.db import check_db
-from app.s3 import check_s3
+from app.s3 import check_s3, upload_file
 from app.video_processing.process import save_video_chunk, process_video_balanced, load_models, finalize_video
 
 # Global thread pool for blocking operations
@@ -133,7 +133,8 @@ async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
                 )
 
                 print(f"Session {session_id}: Saved chunk {chunk_count} to {filepath}")
-                await websocket.send_text(f"Received chunk {chunk_count}, saved to {filepath}")
+                if websocket.application_state == websocket.STATE_CONNECTED:
+                    await websocket.send_text(f"Received chunk {chunk_count}, saved to {filepath}")
 
             elif data.get("text"):
                 try:
@@ -148,16 +149,39 @@ async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
     except WebSocketDisconnect:
         print(f"Session {session_id}: Client disconnected after {chunk_count} chunks")
     except Exception as e:
-        print(f"Session {session_id}: Error: {e}")
-        await websocket.close(code=1011)
-    # Финализируем видео в один файл и анализируем
+        print(f"Session {session_id}: Error during streaming: {e}")
+        try:
+            if websocket.application_state == websocket.STATE_CONNECTED:
+                await websocket.close(code=1011)
+        except Exception:
+            pass
+
+    # Финализируем видео и анализируем
     try:
         final_video_path = await finalize_video(session_id)
         print(f"Session {session_id}: Final video ready at {final_video_path}")
 
-        # Передаём путь к видео в анализ
         analysis_result = await process_video_balanced(final_video_path)
         print(f"Session {session_id}: Analysis result: {analysis_result}")
 
+        # Сохраняем JSON с результатами
+        result_json_path = base_dir / f"{session_id}_analysis.json"
+        with open(result_json_path, "w") as f:
+            json.dump({"session_id": session_id, "analysis": analysis_result}, f)
+        print(f"Session {session_id}: Analysis JSON saved at {result_json_path}")
+
+        # Параллельная загрузка видео и JSON в S3
+        video_task = asyncio.create_task(upload_file(final_video_path, f"{session_id}.webm"))
+        json_task = asyncio.create_task(upload_file(result_json_path, f"{session_id}_analysis.json"))
+        await asyncio.gather(video_task, json_task)
+
+        if websocket.application_state == websocket.STATE_CONNECTED:
+            await websocket.send_text("Video and analysis uploaded to S3 successfully")
+
     except Exception as e:
-        print(f"Session {session_id}: Failed to finalize or analyze video: {e}")
+        print(f"Session {session_id}: Failed to finalize/analyze/upload video: {e}")
+        try:
+            if websocket.application_state == websocket.STATE_CONNECTED:
+                await websocket.send_text(f"Error processing video: {e}")
+        except Exception:
+            pass

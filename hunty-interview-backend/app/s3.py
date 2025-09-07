@@ -1,5 +1,6 @@
 from typing import Optional
 
+import asyncio
 import boto3
 from botocore.config import Config
 
@@ -24,3 +25,13 @@ def check_s3() -> None:
     client = get_s3_client()
     # Using head_bucket is cheaper than list_buckets
     client.head_bucket(Bucket=settings.s3.bucket)
+
+
+async def upload_file(file_path: str, key: str):
+    """
+    Асинхронная обёртка для загрузки файла в S3.
+    """
+    loop = asyncio.get_event_loop()
+    s3 = get_s3_client()
+    await loop.run_in_executor(None, s3.upload_file, file_path, settings.s3.bucket, key)
+    print(f"Uploaded {file_path} to s3://{settings.s3.bucket}/{key}")
