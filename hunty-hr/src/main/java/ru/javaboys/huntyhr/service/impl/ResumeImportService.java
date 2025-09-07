@@ -11,12 +11,23 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import ru.javaboys.huntyhr.ai.OpenAiService;
 import ru.javaboys.huntyhr.dto.ResumeStructuredDto;
-import ru.javaboys.huntyhr.entity.*;
+import ru.javaboys.huntyhr.entity.ApplicationEntity;
+import ru.javaboys.huntyhr.entity.ApplicationStatusEnum;
+import ru.javaboys.huntyhr.entity.CandidateEntity;
+import ru.javaboys.huntyhr.entity.CompanyEntity;
+import ru.javaboys.huntyhr.entity.EducationEntity;
+import ru.javaboys.huntyhr.entity.EducationLevelEnum;
+import ru.javaboys.huntyhr.entity.ResumeExperienceEntity;
+import ru.javaboys.huntyhr.entity.ResumeSkillEntity;
+import ru.javaboys.huntyhr.entity.ResumeSourceType;
+import ru.javaboys.huntyhr.entity.ResumeVersionEntity;
+import ru.javaboys.huntyhr.entity.SexEnum;
+import ru.javaboys.huntyhr.entity.StorageObjectEntity;
+import ru.javaboys.huntyhr.entity.VacancyEntity;
 import ru.javaboys.huntyhr.service.DocParseService;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
 
@@ -178,20 +189,38 @@ public class ResumeImportService {
         }
 
         // 7) заявка
+        if (vacancyId == null) {
+            throw new IllegalArgumentException("vacancyId must not be null");
+        }
+
         VacancyEntity vacancy = dm.load(VacancyEntity.class)
-                .ids(List.of(vacancyId)).list().getFirst();
+                .id(vacancyId)
+                .optional()
+                .orElseThrow(() -> new IllegalArgumentException(
+                        "Vacancy not found by id=" + vacancyId
+                ));
 
-        ApplicationEntity app = dm.create(ApplicationEntity.class);
-        app.setCandidate(candidate);
-        app.setVacancy(vacancy);
-        app.setStatus(ApplicationStatusEnum.NEW);
-        app.setScreeningMatchPercent(0L);
-        app.setTechScore(0L);
-        app.setCommScore(0L);
-        app.setCasesScore(0L);
-        app.setTotalScore(0L);
-        app = dm.save(app);
+        // не создаём дубликат, если уже есть заявка на эту вакансию
+        var existingAppOpt = dm.load(ApplicationEntity.class)
+                .query("select a from ApplicationEntity a where a.vacancy = :v and a.candidate = :c")
+                .parameter("v", vacancy)
+                .parameter("c", candidate)
+                .optional();
 
+        ApplicationEntity app = existingAppOpt.orElseGet(() -> {
+            ApplicationEntity a = dm.create(ApplicationEntity.class);
+            a.setCandidate(candidate);
+            a.setVacancy(vacancy);
+            a.setStatus(ApplicationStatusEnum.NEW);
+            a.setScreeningMatchPercent(0L);
+            a.setTechScore(0L);
+            a.setCommScore(0L);
+            a.setCasesScore(0L);
+            a.setTotalScore(0L);
+            return dm.save(a);
+        });
+
+        // если нужно вернуть id существующей/новой заявки:
         return new Result(app.getId(), rawText);
     }
 

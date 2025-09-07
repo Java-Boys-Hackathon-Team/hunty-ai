@@ -4,6 +4,7 @@ import com.vaadin.flow.component.AbstractField;
 import com.vaadin.flow.data.renderer.TextRenderer;
 import com.vaadin.flow.router.Route;
 import io.jmix.core.FileRef;
+import io.jmix.flowui.Notifications;
 import io.jmix.flowui.component.grid.DataGrid;
 import io.jmix.flowui.component.upload.FileStorageUploadField;
 import io.jmix.flowui.model.CollectionLoader;
@@ -17,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import ru.javaboys.huntyhr.entity.ApplicationEntity;
 import ru.javaboys.huntyhr.entity.VacancyEntity;
 import ru.javaboys.huntyhr.service.impl.ResumeImportService;
+import ru.javaboys.huntyhr.service.impl.ScoringService;
 import ru.javaboys.huntyhr.view.main.MainView;
 
 @Route(value = "vacancy-entities/:id", layout = MainView.class)
@@ -36,6 +38,12 @@ public class VacancyEntityDetailView extends StandardDetailView<VacancyEntity> {
 
     @ViewComponent
     private DataGrid<ApplicationEntity> applicationsGrid;
+
+    @Autowired
+    private Notifications notifications;
+
+    @Autowired
+    private ScoringService scoringService;
 
     @Subscribe
     public void onInit(InitEvent event) {
@@ -82,7 +90,15 @@ public class VacancyEntityDetailView extends StandardDetailView<VacancyEntity> {
         if (ref == null) return;
 
         VacancyEntity vac = getEditedEntity();
-        resumeImportService.importFromFile(vac.getId(), ref);
+        if (vac.getId() == null) {
+            notifications.create("Сначала сохраните вакансию, прежде чем загружать резюме")
+                    .withType(Notifications.Type.WARNING)
+                    .show();
+            return;
+        }
+
+        ResumeImportService.Result result = resumeImportService.importFromFile(vac.getId(), ref);
+        scoringService.scoreApplication(result.getApplicationId());
 
         resumeUpload.setValue(null);
         applicationsDl.load();
