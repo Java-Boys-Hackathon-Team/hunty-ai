@@ -25,6 +25,17 @@ services:
     depends_on:
       - hunty-hr-db
 
+  hunty-interview-ui:
+    build:
+      context: hunty-interview-ui
+      dockerfile: ./Dockerfile
+    container_name: hunty-interview-ui
+    restart: always
+    ports:
+      - "8085:80"
+    depends_on:
+      - hunty-interview-backend
+
   hunty-interview-backend:
     build:
       context: hunty-interview-backend
