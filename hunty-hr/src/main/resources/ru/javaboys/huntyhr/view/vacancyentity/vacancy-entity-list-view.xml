@@ -1,0 +1,71 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      xmlns:c="http://jmix.io/schema/flowui/jpql-condition"
+      title="msg://vacancyEntityListView.title"
+      focusComponent="vacancyEntitiesDataGrid">
+    <data>
+        <collection id="vacancyEntitiesDc"
+                    class="ru.javaboys.huntyhr.entity.VacancyEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="vacancyEntitiesDl" readOnly="true">
+                <query>
+                    <![CDATA[select e from VacancyEntity e]]>
+                </query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <genericFilter component="genericFilter"/>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+    </facets>
+    <actions>
+        <action id="selectAction" type="lookup_select"/>
+        <action id="discardAction" type="lookup_discard"/>
+    </actions>
+    <layout>
+        <iframe/>
+        <formLayout id="attachmentForm">
+            <fileStorageUploadField id="cvUpload"
+                                    property="fileRef"
+                                    acceptedFileTypes=".pdf,.doc,.docx,.rtf,.odt,.txt,.html,.htm"
+                                    autoupload="true"
+                                    dropAllowed="true"
+                                    clearButtonVisible="true"
+                                    label="Загрузить Файл"/>
+        </formLayout>
+        <genericFilter id="genericFilter"
+                       dataLoader="vacancyEntitiesDl">
+            <properties include=".*"/>
+        </genericFilter>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="createButton" action="vacancyEntitiesDataGrid.createAction"/>
+            <button id="editButton" action="vacancyEntitiesDataGrid.editAction"/>
+            <button id="removeButton" action="vacancyEntitiesDataGrid.removeAction"/>
+            <simplePagination id="pagination" dataLoader="vacancyEntitiesDl"/>
+        </hbox>
+        <dataGrid id="vacancyEntitiesDataGrid"
+                  width="100%"
+                  minHeight="20em"
+                  dataContainer="vacancyEntitiesDc"
+                  columnReorderingAllowed="true">
+            <actions>
+                <action id="createAction" type="list_create"/>
+                <action id="editAction" type="list_edit"/>
+                <action id="removeAction" type="list_remove"/>
+            </actions>
+            <columns resizable="true">
+                <column property="id" header="Идентификатор"/>
+                <column property="title" header="Название"/>
+                <column property="seniority" header="Уровень"/>
+                <column property="status" header="Статус"/>
+            </columns>
+        </dataGrid>
+        <hbox id="lookupActions" visible="false">
+            <button id="selectButton" action="selectAction"/>
+            <button id="discardButton" action="discardAction"/>
+        </hbox>
+    </layout>
+</view>
