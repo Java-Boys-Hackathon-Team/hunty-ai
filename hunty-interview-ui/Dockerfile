@@ -2,8 +2,7 @@
 # Builder stage
 FROM node:20-alpine AS builder
 
-# Ensure reproducible installs and smaller image
-ENV NODE_ENV=production
+# Builder should install devDependencies (typescript, vite, etc.)
 WORKDIR /app
 
 # Install dependencies (use npm ci for clean, reproducible install)
@@ -18,6 +17,9 @@ RUN npm run build
 
 # Runtime stage: use a minimal web server to serve static assets
 FROM nginx:1.27-alpine AS runner
+
+# Production runtime environment
+ENV NODE_ENV=production
 
 # Copy nginx config optimized for SPA
 COPY nginx.conf /etc/nginx/conf.d/default.conf
