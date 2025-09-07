@@ -50,6 +50,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application source
 COPY main.py ./
 COPY app ./app
+# Ensure static directory exists and copy assets if present
+RUN mkdir -p /app/static
+COPY static ./static
 
 # Expose service port
 EXPOSE 8000
