@@ -25,6 +25,29 @@ services:
     depends_on:
       - hunty-hr-db
 
+  hunty-interview-backend:
+    build:
+      context: hunty-interview-backend
+      dockerfile: ./Dockerfile
+    container_name: hunty-interview-backend
+    restart: always
+    depends_on:
+      - hunty-hr-db
+      - hunty-hr-s3
+    environment:
+      - DB_HOST=hunty-hr-db
+      - DB_PORT=5432
+      - DB_NAME=huntyhr
+      - DB_USER=pgadmin
+      - DB_PASSWORD=pgadmin
+      - S3_ENDPOINT_URL=http://hunty-hr-s3:9000
+      - S3_REGION=ru-mos
+      - S3_ACCESS_KEY_ID=minioadmin
+      - S3_SECRET_ACCESS_KEY=minioadmin
+      - S3_BUCKET=files
+    ports:
+      - "8084:8000"
+
   hunty-hr-db:
     build:
       dockerfile: ./Dockerfile
