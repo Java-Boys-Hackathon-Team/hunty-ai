@@ -358,7 +358,13 @@ function useVoiceWS(opts: {
                     const m = JSON.parse(ev.data)
 
                     if (m.type === 'system') {
-                        const evt = (m.event ?? 'unknown') as 'ready' | 'ended' | 'error' | 'unknown'
+                        // Сузим произвольное m.event до допустимого union
+                        const raw = m.event as unknown
+                        const evt: 'ready' | 'ended' | 'error' =
+                            raw === 'ready' ? 'ready' :
+                                raw === 'ended' ? 'ended' :
+                                    raw === 'error' ? 'error' : 'error'
+
                         onSystem({type: evt, message: m.message})
                     } else if (m.type === 'stt.partial') {
                         onPartial(m as STTPartial)
@@ -787,7 +793,7 @@ const MeetingApp: React.FC = () => {
         const sr = 24000
         const buf = generateTonePCM16(300, sr, 440, 1, 0.25) // 300мс бип
         // Только для отладки
-        console.log('[Audio]', ttsPlayerRef.current['ctx']?.state)
+        console.log('[Audio]', (ttsPlayerRef.current as any)['ctx']?.state)
         ttsPlayerRef.current.enqueuePCM16(buf, sr, 1)
     }, [])
 
@@ -860,7 +866,6 @@ const MeetingApp: React.FC = () => {
                         micEnabled={micEnabled}
                         onMicToggle={() => setMicEnabled((m) => !m)}
                         camEnabled={camEnabled}
-                        onCamToggle={() => setCamEnabled((c) => !c)}
                         level={level}
                         subtitles={subtitles}
                         speaking={avatarSpeaking}
@@ -1029,12 +1034,11 @@ const LiveView: React.FC<{
     micEnabled: boolean
     onMicToggle: () => void
     camEnabled: boolean
-    onCamToggle: () => void
     level: number
     speaking: boolean
     subtitles: { partial?: string; finals: string[] }
     cameraStream: MediaStream | null
-}> = ({micEnabled, onMicToggle, camEnabled, onCamToggle, level, speaking, subtitles, cameraStream}) => {
+}> = ({micEnabled, onMicToggle, camEnabled, level, speaking, subtitles, cameraStream}) => {
     const videoRef = useRef<HTMLVideoElement | null>(null)
     useEffect(() => {
         if (!videoRef.current) return
