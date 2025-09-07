@@ -1,19 +1,22 @@
-from contextlib import asynccontextmanager
+import asyncio
 import logging
+from concurrent.futures import ThreadPoolExecutor
+from contextlib import asynccontextmanager
+from pathlib import Path
 from typing import List
+
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi.staticfiles import StaticFiles
 from starlette import status
 from starlette.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-
-from concurrent.futures import ThreadPoolExecutor
-from app.video_processing.process import save_video_chunk
 
 from app.db import check_db
 from app.s3 import check_s3
+from app.video_processing.process import process_chunk_async, save_video_chunk
 
 # Global thread pool for blocking operations
 executor = ThreadPoolExecutor(max_workers=4)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -28,6 +31,7 @@ async def lifespan(app: FastAPI):
         raise
     yield
 
+
 app = FastAPI(lifespan=lifespan)
 
 # CORS: allow requests from any origin
@@ -41,6 +45,7 @@ app.add_middleware(
 
 # Mount static files directory
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # WebSocket manager class
 class ConnectionManager:
@@ -61,15 +66,19 @@ class ConnectionManager:
         for connection in self.active_connections:
             await connection.send_text(message)
 
+
 manager = ConnectionManager()
+
 
 @app.get("/")
 async def root():
     return {"message": "Hello World"}
 
+
 @app.get("/hello/{name}")
 async def say_hello(name: str):
     return {"message": f"Hello {name}"}
+
 
 @app.get("/health")
 async def health():
@@ -98,21 +107,39 @@ async def health():
 async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
     await websocket.accept()
     print(f"Client connected to session: {session_id}")
-    
+
+    # Создаем/очищаем файл при подключении
+    base_dir = Path(f"/tmp/interview_video/{session_id}")
+    base_dir.mkdir(parents=True, exist_ok=True)
+    filepath = base_dir / "recording.webm"
+
+    # Очищаем файл если он существует
+    if filepath.exists():
+        filepath.unlink()
+
     try:
         chunk_count = 0
         while True:
             # Receive video data from client
             data = await websocket.receive_bytes()
             chunk_count += 1
-            
-            # Save chunk to filesystem
-            filepath = save_video_chunk(data, session_id)
+
+            # Save chunk to the main file (blocking operation in thread pool)
+            loop = asyncio.get_event_loop()
+            filepath = await loop.run_in_executor(
+                executor, save_video_chunk, data, session_id
+            )
+
+            # Start async processing of the chunk (non-blocking)
+            asyncio.create_task(process_chunk_async(data, session_id, chunk_count))
+
             print(f"Session {session_id}: Saved chunk {chunk_count} to {filepath}")
-            
+
             # Acknowledge receipt
-            await websocket.send_text(f"Received chunk {chunk_count}, saved to {filepath}")
-            
+            await websocket.send_text(
+                f"Received chunk {chunk_count}, saved to {filepath}"
+            )
+
     except WebSocketDisconnect:
         print(f"Session {session_id}: Client disconnected after {chunk_count} chunks")
     except Exception as e:
