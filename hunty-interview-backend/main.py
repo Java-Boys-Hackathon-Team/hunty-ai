@@ -13,7 +13,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.db import check_db
 from app.s3 import check_s3
-from app.video_processing.process import save_video_chunk, process_video, load_models
+from app.video_processing.process import save_video_chunk, process_video, load_models, finalize_video
 
 # Global thread pool for blocking operations
 executor = ThreadPoolExecutor(max_workers=4)
@@ -112,40 +112,29 @@ async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
     await websocket.accept()
     print(f"Client connected to session: {session_id}")
 
-    # Создаем/очищаем файл при подключении
     base_dir = Path(f"/tmp/interview_video/{session_id}")
     base_dir.mkdir(parents=True, exist_ok=True)
     filepath = base_dir / "recording.webm"
-
-    # Очищаем файл если он существует
     if filepath.exists():
         filepath.unlink()
 
     try:
         chunk_count = 0
         while True:
-            # Receive data from client
             data = await websocket.receive()
 
-            # Обрабатываем бинарные чанки
             if data.get("bytes"):
                 chunk = data["bytes"]
                 chunk_count += 1
 
-                # Save chunk in thread pool (blocking)
                 loop = asyncio.get_event_loop()
                 filepath = await loop.run_in_executor(
                     executor, save_video_chunk, chunk, session_id
                 )
 
                 print(f"Session {session_id}: Saved chunk {chunk_count} to {filepath}")
+                await websocket.send_text(f"Received chunk {chunk_count}, saved to {filepath}")
 
-                # Подтверждение фронтенду
-                await websocket.send_text(
-                    f"Received chunk {chunk_count}, saved to {filepath}"
-                )
-
-            # Обрабатываем специальные JSON-сообщения
             elif data.get("text"):
                 try:
                     message = json.loads(data["text"])
@@ -161,7 +150,14 @@ async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
     except Exception as e:
         print(f"Session {session_id}: Error: {e}")
         await websocket.close(code=1011)
+    # Финализируем видео в один файл и анализируем
+    try:
+        final_video_path = await finalize_video(session_id)
+        print(f"Session {session_id}: Final video ready at {final_video_path}")
 
-    # После отключения клиента запускаем анализ видео
-    analysis_result = await process_video(session_id)
-    print(f"Session {session_id}: Analysis result: {analysis_result}")
+        # Передаём путь к видео в анализ
+        analysis_result = await process_video(final_video_path)
+        print(f"Session {session_id}: Analysis result: {analysis_result}")
+
+    except Exception as e:
+        print(f"Session {session_id}: Failed to finalize or analyze video: {e}")
