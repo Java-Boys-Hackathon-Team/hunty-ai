@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+    <changeSet id="1" author="hunty-hr">
+        <dropColumn columnName="WEIGHT_CASES" tableName="VACANCY_ENTITY"/>
+
+        <dropColumn columnName="WEIGHT_COMM" tableName="VACANCY_ENTITY"/>
+
+        <dropColumn columnName="WEIGHT_TECH" tableName="VACANCY_ENTITY"/>
+    </changeSet>
+    <changeSet id="2" author="hunty-hr">
+        <addColumn tableName="VACANCY_ENTITY">
+            <column name="WEIGHT_CASES" type="INT"/>
+            <column name="WEIGHT_COMM" type="INT"/>
+            <column name="WEIGHT_TECH" type="INT"/>
+        </addColumn>
+    </changeSet>
+</databaseChangeLog>

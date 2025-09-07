@@ -1,0 +1,130 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://vacancyEntityDetailView.title"
+      focusComponent="form">
+    <data>
+        <instance id="vacancyEntityDc"
+                  class="ru.javaboys.huntyhr.entity.VacancyEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="vacancyEntityDl"/>
+        </instance>
+        <collection id="applicationsDc" class="ru.javaboys.huntyhr.entity.ApplicationEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="applicationsDl">
+                <query><![CDATA[
+                select a from ApplicationEntity a where a.vacancy = :container_vacancyEntityDc
+            ]]></query>
+            </loader>
+        </collection>
+    </data>
+
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <actions>
+        <action id="saveAction" type="detail_saveClose"/>
+        <action id="closeAction" type="detail_close"/>
+    </actions>
+    <layout>
+        <tabSheet id="mainTabs" width="100%">
+
+            <!-- ОСНОВНОЕ -->
+            <tab id="tabMain" label="Основное">
+                <formLayout id="formMain" dataContainer="vacancyEntityDc">
+                    <responsiveSteps>
+                        <responsiveStep minWidth="0" columns="1"/>
+                        <responsiveStep minWidth="40em" columns="2"/>
+                    </responsiveSteps>
+
+                    <textField id="titleField"
+                               label="Название"
+                               property="title" required="true"/>
+
+                    <!-- seniority/status пока строки: дадим список значений -->
+                    <comboBox id="seniorityField"
+                              label="Уровень"
+                              property="seniority"
+                              itemsEnum=
+                                      "ru.javaboys.huntyhr.entity.SeniorityLevelEnum"/>
+
+                    <comboBox id="statusField"
+                              label="Статус"
+                              property="status"
+                              itemsEnum="ru.javaboys.huntyhr.entity.VacancyStatusEnum"/>
+
+                    <!-- Сценарий интервью -->
+                    <entityPicker id="scenarioPicker"
+                                  label="Сценарий интервью"
+                                  dataContainer="vacancyEntityDc"
+                                  property="scenario">
+                        <actions>
+                            <action id="entityLookup" type="entity_lookup"/>
+                            <action id="entityOpen" type="entity_open"/>
+                            <action id="entityClear" type="entity_clear"/>
+                        </actions>
+                    </entityPicker>
+                </formLayout>
+            </tab>
+
+            <!-- ОПИСАНИЕ -->
+            <tab id="tabDescription" label="Описание">
+                <formLayout id="formDesc" dataContainer="vacancyEntityDc">
+                    <textArea id="descriptionField" label="Описание"
+                              property="description" height="10em" clearButtonVisible="true"/>
+                    <textArea id="responsibilitiesField" label="Обязанности"
+                              property="responsibilities" height="10em" clearButtonVisible="true"/>
+                    <textArea id="requirementsField" label="Требования"
+                              property="requirements" height="10em" clearButtonVisible="true"/>
+                    <textArea id="niceToHaveField" label="Желательно"
+                              property="niceToHave" height="8em" clearButtonVisible="true"/>
+                    <textArea id="conditionsField" label="Условия"
+                              property="conditions" height="8em" clearButtonVisible="true"/>
+                </formLayout>
+            </tab>
+
+            <!-- СКОРИНГ -->
+            <tab id="tabScoring" label="Скоринг">
+                <formLayout id="formWeights" dataContainer="vacancyEntityDc">
+                    <integerField id="weightTechField" label="Вес: Технические навыки (%)"
+                                  property="weightTech" min="0" max="100" step="5"/>
+                    <integerField id="weightCommField" label="Вес: Коммуникации (%)"
+                                  property="weightComm" min="0" max="100" step="5"/>
+                    <integerField id="weightCasesField" label="Вес: Кейсы (%)"
+                                  property="weightCases" min="0" max="100" step="5"/>
+                    <!-- Подсказка: сумма должна быть 100 -->
+                    <label id="weightsHint" text="Сумма всех весов должна быть равна 100%"/>
+                </formLayout>
+            </tab>
+
+            <!-- РЕЗЮМЕ -->
+            <tab id="tabResumes" label="Резюме">
+                <vbox spacing="true">
+                    <hbox>
+                        <fileStorageUploadField id="resumeUpload"
+                                                acceptedFileTypes=".pdf,.doc,.docx,.rtf,.odt,.txt,.html,.htm"
+                                                autoupload="true" dropAllowed="true"
+                                                clearButtonVisible="true" label="Загрузить резюме"/>
+                        <button id="refreshAppsBtn" text="Обновить"/>
+                    </hbox>
+
+                    <dataGrid id="applicationsGrid" width="100%" minHeight="20em" dataContainer="applicationsDc" emptyStateText="No customers found">
+                        <columns>
+                            <column property="candidate.name" header="Имя"/>
+                            <column property="candidate.surname" header="Фамилия"/>
+                            <column property="candidate.email" header="Email"/>
+                            <column property="status" header="Статус"/>
+                            <column property="screeningMatchPercent" header="% совпадения"/>
+                            <column property="totalScore" header="Скоринг"/>
+                        </columns>
+                    </dataGrid>
+                </vbox>
+            </tab>
+
+        </tabSheet>
+
+        <hbox id="detailActions">
+            <button id="saveAndCloseButton" action="saveAction"/>
+            <button id="closeButton" action="closeAction"/>
+        </hbox>
+    </layout>
+</view>

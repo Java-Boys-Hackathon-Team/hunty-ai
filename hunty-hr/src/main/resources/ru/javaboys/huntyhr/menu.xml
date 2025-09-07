@@ -3,6 +3,8 @@
 
     <menu id="application" title="msg://ru.javaboys.huntyhr/menu.application.title" opened="true">
         <item view="User.list" title="msg://ru.javaboys.huntyhr.view.user/UserListView.title"/>
+        <item view="VacancyEntity.list"
+              title="msg://ru.javaboys.huntyhr.view.vacancyentity/vacancyEntityListView.title"/>
     </menu>
 
 </menu-config>

@@ -1,8 +1,6 @@
 package ru.javaboys.huntyhr.entity;
 
-import java.util.List;
-import java.util.UUID;
-
+import io.jmix.core.FileRef;
 import io.jmix.core.entity.annotation.JmixGeneratedValue;
 import io.jmix.core.metamodel.annotation.InstanceName;
 import io.jmix.core.metamodel.annotation.JmixEntity;
@@ -17,6 +15,9 @@ import jakarta.persistence.OneToMany;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
 
+import java.util.List;
+import java.util.UUID;
+
 @JmixEntity
 @Table(name = "VACANCY_ENTITY", indexes = {
         @Index(name = "IDX_VACANCY_ENTITY_SCENARIO", columnList = "SCENARIO_ID")
@@ -27,6 +28,10 @@ public class VacancyEntity {
     @Column(name = "ID", nullable = false)
     @Id
     private UUID id;
+
+    @Column(name = "FILE_REF")
+    @Lob
+    private FileRef fileRef;
 
     @InstanceName
     @Column(name = "TITLE")
@@ -59,13 +64,13 @@ public class VacancyEntity {
     private String conditions;
 
     @Column(name = "WEIGHT_TECH")
-    private Long weightTech;
+    private Integer weightTech;
 
     @Column(name = "WEIGHT_COMM")
-    private Long weightComm;
+    private Integer weightComm;
 
     @Column(name = "WEIGHT_CASES")
-    private Long weightCases;
+    private Integer weightCases;
 
     @OneToMany(mappedBy = "vacancyEntity")
     private List<VacancyPipelineStageEntity> stages;
@@ -73,6 +78,50 @@ public class VacancyEntity {
     @JoinColumn(name = "SCENARIO_ID")
     @OneToOne(fetch = FetchType.LAZY)
     private InterviewScenarioEntity scenario;
+
+    @Column(name = "FILE_NAME")
+    @Lob
+    private String fileName;
+
+    public void setWeightTech(Integer weightTech) {
+        this.weightTech = weightTech;
+    }
+
+    public Integer getWeightTech() {
+        return weightTech;
+    }
+
+    public void setWeightComm(Integer weightComm) {
+        this.weightComm = weightComm;
+    }
+
+    public Integer getWeightComm() {
+        return weightComm;
+    }
+
+    public void setWeightCases(Integer weightCases) {
+        this.weightCases = weightCases;
+    }
+
+    public Integer getWeightCases() {
+        return weightCases;
+    }
+
+    public String getFileName() {
+        return fileName;
+    }
+
+    public void setFileName(String fileName) {
+        this.fileName = fileName;
+    }
+
+    public FileRef getFileRef() {
+        return fileRef;
+    }
+
+    public void setFileRef(FileRef fileRef) {
+        this.fileRef = fileRef;
+    }
 
     public InterviewScenarioEntity getScenario() {
         return scenario;
@@ -88,30 +137,6 @@ public class VacancyEntity {
 
     public void setStages(List<VacancyPipelineStageEntity> stages) {
         this.stages = stages;
-    }
-
-    public Long getWeightCases() {
-        return weightCases;
-    }
-
-    public void setWeightCases(Long weightCases) {
-        this.weightCases = weightCases;
-    }
-
-    public Long getWeightComm() {
-        return weightComm;
-    }
-
-    public void setWeightComm(Long weightComm) {
-        this.weightComm = weightComm;
-    }
-
-    public Long getWeightTech() {
-        return weightTech;
-    }
-
-    public void setWeightTech(Long weightTech) {
-        this.weightTech = weightTech;
     }
 
     public String getConditions() {
