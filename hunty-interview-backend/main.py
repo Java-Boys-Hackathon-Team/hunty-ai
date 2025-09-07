@@ -3,6 +3,7 @@ import logging
 
 from fastapi import FastAPI, HTTPException
 from starlette import status
+from starlette.middleware.cors import CORSMiddleware
 
 from app.db import check_db
 from app.s3 import check_s3
@@ -23,6 +24,15 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# CORS: allow requests from any origin
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,  # must be False when using "*"
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")
