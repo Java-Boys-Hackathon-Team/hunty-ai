@@ -1,13 +1,45 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="UTF-8" />
+<html lang="ru">
+<head>
+    <meta charset="UTF-8"/>
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Vite + React + TS</title>
-  </head>
-  <body>
-    <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
-  </body>
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"/>
+    <meta name="color-scheme" content="dark light"/>
+    <meta name="theme-color" content="#0f1216"/>
+    <title>AI Interview</title>
+
+    <style>
+        html, body, #root {
+            height: 100%;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            background: #0f1216;
+            color: #e7ecf3;
+            font-family: system-ui, sans-serif;
+        }
+
+        /* Фолбек до монтирования React */
+        #root::before {
+            content: 'Загрузка интерфейса…';
+            display: grid;
+            place-items: center;
+            height: 100%;
+            color: #aab4c3;
+        }
+
+        /* Как только добавлен класс .app-mounted - скрываем плейсхолдер */
+        html.app-mounted #root::before {
+            content: none;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+<noscript>Для работы приложения необходим JavaScript.</noscript>
+<div id="root"></div>
+<script type="module" src="/src/main.tsx"></script>
+</body>
 </html>
