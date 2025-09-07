@@ -13,8 +13,8 @@ RUN apt-get update \
        curl \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Poetry via pip (pipx not available by default on slim)
-RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}"
+# Install Poetry and the export plugin via pip (pipx not available by default on slim)
+RUN pip install --no-cache-dir "poetry==${POETRY_VERSION}" poetry-plugin-export
 
 WORKDIR /app
 
