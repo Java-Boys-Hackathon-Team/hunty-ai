@@ -13,7 +13,6 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from starlette import status
 from starlette.middleware.cors import CORSMiddleware
-from starlette.requests import Request
 
 from app.db import check_db
 from app.repositories.storage import save_video_and_json_refs
@@ -112,7 +111,6 @@ def add_minutes(iso: str, minutes: int) -> str:
     )
 
 
-
 # Начальные данные
 MEETINGS["abc"] = {
     "code": "abc",
@@ -139,7 +137,7 @@ async def get_meeting(code: str):
 
 @app.post("/meetings/{code}/start")
 async def start_meeting(
-    code: str, payload: Optional[Dict[str, Any]] = Body(default=None)
+        code: str, payload: Optional[Dict[str, Any]] = Body(default=None)
 ):
     m = MEETINGS.get(code)
     if not m:
@@ -278,7 +276,7 @@ class VadState:
         self.total_ms = 0
         self.segment_counter = 0
         # Каталог для сохранения сегментов речи
-        self.base_dir = Path("./data/voice_segments") / interview_id
+        self.base_dir = Path(f"/tmp/voice_segments/{interview_id}")
         self.base_dir.mkdir(parents=True, exist_ok=True)
 
     def start_segment(self):
