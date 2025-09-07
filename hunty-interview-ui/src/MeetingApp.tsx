@@ -82,18 +82,17 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
 // Выбор поддерживаемого видео mime для MediaRecorder
 function pickBestVideoMime(): string {
     const candidates = [
-        'video/webm;codecs=vp9',
-        'video/webm;codecs=vp8',
+        'video/webm; codecs=vp9',
+        'video/webm; codecs=vp8',
         'video/webm'
     ]
     for (const t of candidates) {
         try {
-            // @ts-ignore
-            if (window.MediaRecorder?.isTypeSupported?.(t)) return t
+            if ((window as any).MediaRecorder?.isTypeSupported?.(t)) return t
         } catch {
         }
     }
-    return '' // пустая строка - пусть браузер решит сам
+    return '' // пусть браузер выберет сам, если ничего из списка не прошло
 }
 
 // ------------ Mic level (VU) hook -------------
@@ -855,6 +854,7 @@ const MeetingApp: React.FC = () => {
             videoWSRef.current = ws
 
             ws.onopen = () => {
+                console.log('[VideoWS] open', url)
                 // проверим наличие живого видеотрека
                 const vTrack = cameraStream.getVideoTracks?.()[0]
                 if (!vTrack || vTrack.readyState !== 'live') {
@@ -862,12 +862,12 @@ const MeetingApp: React.FC = () => {
                 }
 
                 try {
-                    const mime = pickBestVideoMime()
+                    const mime = pickBestVideoMime() || 'video/webm; codecs=vp9' // fallback как в демо
                     console.log('[VideoRec] mime =', mime || '(auto)')
 
                     const rec = new MediaRecorder(cameraStream, {
-                        mimeType: mime || undefined,
-                        videoBitsPerSecond: 2_000_000
+                        mimeType: mime,
+                        videoBitsPerSecond: 2_000_000, // 2 Mbps
                     })
                     videoRecRef.current = rec
 
@@ -878,18 +878,11 @@ const MeetingApp: React.FC = () => {
                         stopVideoPipe()
                     }
 
-                    rec.ondataavailable = async (event) => {
+                    rec.ondataavailable = (event) => {
                         const size = event?.data?.size ?? 0
                         console.log('[VideoRec] chunk size =', size)
-                        if (!event.data || size === 0) return
-                        try {
-                            // отправляем как ArrayBuffer, не Blob
-                            const buf = await event.data.arrayBuffer()
-                            if (ws.readyState === WebSocket.OPEN) {
-                                ws.send(buf)
-                            }
-                        } catch (e) {
-                            console.error('[VideoRec] arrayBuffer/send failed', e)
+                        if (event.data && size > 0 && ws.readyState === WebSocket.OPEN) {
+                            ws.send(event.data) // как в статике
                         }
                     }
 
