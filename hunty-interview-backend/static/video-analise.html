@@ -133,10 +133,7 @@
         
         // Stop recording
         function stopRecording() {
-            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
-                mediaRecorder.stop();
-                statusDiv.textContent = 'Status: Recording stopped';
-            }
+            finishRecording();
             
             if (stream) {
                 stream.getTracks().forEach(track => track.stop());
@@ -158,6 +155,21 @@
             stopButton.addEventListener('click', stopRecording);
         }
         
+        function finishRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            
+            // Отправляем специальный сигнал о завершении записи
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                socket.send(JSON.stringify({action: "end_of_stream"}));
+            }
+        }
+
+        window.addEventListener('beforeunload', function() {
+            finishRecording();
+        });
+
         // Start initialization when page loads
         window.addEventListener('load', init);
     </script>

@@ -11,6 +11,7 @@ ENV POETRY_VERSION=2.1.4 \
 RUN apt-get update \
     && apt-get install -y --no-install-recommends \
        curl \
+       ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Poetry and the export plugin via pip (pipx not available by default on slim)
@@ -32,7 +33,9 @@ ENV PIP_NO_CACHE_DIR=1 \
 
 # Install minimal runtime OS deps (curl for healthcheck)
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends curl \
+    && apt-get install -y --no-install-recommends \
+       curl \
+       ffmpeg \
     && rm -rf /var/lib/apt/lists/*
 
 # Create non-root user

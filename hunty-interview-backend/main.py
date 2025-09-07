@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import List
+import json
 
 from fastapi import FastAPI, HTTPException, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
@@ -12,7 +13,7 @@ from starlette.middleware.cors import CORSMiddleware
 
 from app.db import check_db
 from app.s3 import check_s3
-from app.video_processing.process import process_chunk_async, save_video_chunk
+from app.video_processing.process import save_video_chunk, process_video, load_models
 
 # Global thread pool for blocking operations
 executor = ThreadPoolExecutor(max_workers=4)
@@ -21,6 +22,9 @@ executor = ThreadPoolExecutor(max_workers=4)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     try:
+        # Загружаем модели для обработки видео
+        load_models()
+        
         # Fail fast if DB or S3 are unavailable
         await check_db()
         check_s3()
@@ -120,28 +124,44 @@ async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
     try:
         chunk_count = 0
         while True:
-            # Receive video data from client
-            data = await websocket.receive_bytes()
-            chunk_count += 1
+            # Receive data from client
+            data = await websocket.receive()
 
-            # Save chunk to the main file (blocking operation in thread pool)
-            loop = asyncio.get_event_loop()
-            filepath = await loop.run_in_executor(
-                executor, save_video_chunk, data, session_id
-            )
+            # Обрабатываем бинарные чанки
+            if data.get("bytes"):
+                chunk = data["bytes"]
+                chunk_count += 1
 
-            # Start async processing of the chunk (non-blocking)
-            asyncio.create_task(process_chunk_async(data, session_id, chunk_count))
+                # Save chunk in thread pool (blocking)
+                loop = asyncio.get_event_loop()
+                filepath = await loop.run_in_executor(
+                    executor, save_video_chunk, chunk, session_id
+                )
 
-            print(f"Session {session_id}: Saved chunk {chunk_count} to {filepath}")
+                print(f"Session {session_id}: Saved chunk {chunk_count} to {filepath}")
 
-            # Acknowledge receipt
-            await websocket.send_text(
-                f"Received chunk {chunk_count}, saved to {filepath}"
-            )
+                # Подтверждение фронтенду
+                await websocket.send_text(
+                    f"Received chunk {chunk_count}, saved to {filepath}"
+                )
+
+            # Обрабатываем специальные JSON-сообщения
+            elif data.get("text"):
+                try:
+                    message = json.loads(data["text"])
+                except json.JSONDecodeError:
+                    continue
+
+                if message.get("action") == "end_of_stream":
+                    print(f"Session {session_id}: Received end of stream signal")
+                    break
 
     except WebSocketDisconnect:
         print(f"Session {session_id}: Client disconnected after {chunk_count} chunks")
     except Exception as e:
         print(f"Session {session_id}: Error: {e}")
         await websocket.close(code=1011)
+
+    # После отключения клиента запускаем анализ видео
+    analysis_result = await process_video(session_id)
+    print(f"Session {session_id}: Analysis result: {analysis_result}")
