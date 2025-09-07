@@ -52,7 +52,7 @@ const WS_MAX_RETRIES = 3
 const backendBase = import.meta.env.PROD ? 'https://api.hunty-ai.javaboys.ru' : 'http://localhost:8000'
 
 // База для видео WS по ТЗ
-const VIDEO_WS_ORIGIN = import.meta.env.PROD ? 'wss://hunty-ai.javaboys.ru' : 'ws://localhost:8000'
+const VIDEO_WS_ORIGIN = import.meta.env.PROD ? 'wss://api.hunty-ai.javaboys.ru' : 'ws://localhost:8000'
 
 // ----- утилиты -----
 function formatRemaining(ms: number) {
