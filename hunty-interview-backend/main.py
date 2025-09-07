@@ -13,8 +13,10 @@ from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from starlette import status
 from starlette.middleware.cors import CORSMiddleware
+from starlette.requests import Request
 
 from app.db import check_db
+from app.repositories.storage import save_video_and_json_refs
 from app.s3 import check_s3, upload_file
 from app.video_processing.process import (
     finalize_video,
@@ -22,6 +24,7 @@ from app.video_processing.process import (
     process_video_balanced,
     save_video_chunk,
 )
+
 
 # --------- logging / version ----------
 logging.basicConfig(
@@ -101,7 +104,12 @@ def now_iso() -> str:
 
 def add_minutes(iso: str, minutes: int) -> str:
     t = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-    return (t + timedelta(minutes=minutes)).isoformat(timespec="milliseconds").replace("+00:00", "Z")
+    return (
+        (t + timedelta(minutes=minutes))
+        .isoformat(timespec="milliseconds")
+        .replace("+00:00", "Z")
+    )
+
 
 
 MEETINGS["abc"] = {
@@ -119,15 +127,23 @@ MEETINGS["abc"] = {
 async def get_meeting(code: str):
     m = MEETINGS.get(code)
     if not m:
-        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Meeting not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "not_found", "message": "Meeting not found"},
+        )
     return m
 
 
 @app.post("/meetings/{code}/start")
-async def start_meeting(code: str, payload: Optional[Dict[str, Any]] = Body(default=None)):
+async def start_meeting(
+    code: str, payload: Optional[Dict[str, Any]] = Body(default=None)
+):
     m = MEETINGS.get(code)
     if not m:
-        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Meeting not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "not_found", "message": "Meeting not found"},
+        )
 
     # если уже идёт - возвращаем текущие времена/идентификаторы
     if m.get("status") == "running":
@@ -153,9 +169,15 @@ async def start_meeting(code: str, payload: Optional[Dict[str, Any]] = Body(defa
 async def end_meeting(code: str):
     m = MEETINGS.get(code)
     if not m:
-        raise HTTPException(status_code=404, detail={"error": "not_found", "message": "Meeting not found"})
+        raise HTTPException(
+            status_code=404,
+            detail={"error": "not_found", "message": "Meeting not found"},
+        )
     if m.get("status") != "running":
-        raise HTTPException(status_code=409, detail={"error": "not_running", "message": "Meeting not running"})
+        raise HTTPException(
+            status_code=409,
+            detail={"error": "not_running", "message": "Meeting not running"},
+        )
     m.update({"status": "ended", "endAt": now_iso()})
     return {"ok": True}
 
@@ -177,8 +199,8 @@ def tone_pcm16_square(freq_hz: float, ms: int, sample_rate: int = 24000, channel
     period = max(1, int(sample_rate / max(1.0, freq_hz)))
     for i in range(frames):
         s = amp if (i % period) < (period // 2) else -amp
-        lo = s & 0xff
-        hi = (s >> 8) & 0xff
+        lo = s & 0xFF
+        hi = (s >> 8) & 0xFF
         for ch in range(channels):
             off = (i * channels + ch) * 2
             pcm[off] = lo
@@ -386,7 +408,11 @@ async def voice_gateway(websocket: WebSocket):
     except Exception:
         logger.exception("Voice WS: error")
         try:
-            await websocket.send_text(json.dumps({"type": "system", "event": "error", "message": "Internal error"}))
+            await websocket.send_text(
+                json.dumps(
+                    {"type": "system", "event": "error", "message": "Internal error"}
+                )
+            )
         except Exception:
             pass
         try:
@@ -461,9 +487,13 @@ async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
                     executor, save_video_chunk, chunk, session_id
                 )
 
-                logger.info(f"Session {session_id}: Saved chunk {chunk_count} to {filepath}")
+                logger.info(
+                    f"Session {session_id}: Saved chunk {chunk_count} to {filepath}"
+                )
                 if websocket.application_state == "connected":
-                    await websocket.send_text(f"Received chunk {chunk_count}, saved to {filepath}")
+                    await websocket.send_text(
+                        f"Received chunk {chunk_count}, saved to {filepath}"
+                    )
 
             elif data.get("text"):
                 try:
@@ -476,7 +506,9 @@ async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
                     break
 
     except WebSocketDisconnect:
-        logger.warning(f"Session {session_id}: Client disconnected after {chunk_count} chunks")
+        logger.warning(
+            f"Session {session_id}: Client disconnected after {chunk_count} chunks"
+        )
     except Exception:
         logger.exception(f"Session {session_id}: Error during streaming")
         if websocket.application_state == "connected":
@@ -485,7 +517,7 @@ async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
             except Exception:
                 pass
 
-    # Финализируем видео и анализируем
+    # Финализация: видео + анализ + загрузка в S3 + обновление БД
     try:
         final_video_path = await finalize_video(session_id)
         logger.info(f"Session {session_id}: Final video ready at {final_video_path}")
@@ -499,17 +531,18 @@ async def websocket_video_endpoint(websocket: WebSocket, session_id: str):
         logger.info(f"Session {session_id}: Analysis JSON saved at {result_json_path}")
 
         # Параллельная загрузка видео и JSON в S3
-        video_task = asyncio.create_task(upload_file(final_video_path, f"{session_id}.webm"))
-        json_task = asyncio.create_task(upload_file(result_json_path, f"{session_id}_analysis.json"))
+        video_task = asyncio.create_task(
+            upload_file(final_video_path, f"{session_id}.webm")
+        )
+        json_task = asyncio.create_task(
+            upload_file(result_json_path, f"{session_id}_analysis.json")
+        )
         await asyncio.gather(video_task, json_task)
 
-        if websocket.application_state == "connected":
-            await websocket.send_text("Video and analysis uploaded to S3 successfully")
+        # Сохраняем ссылки в БД
+        await save_video_and_json_refs(session_id)
 
     except Exception:
-        logger.exception(f"Session {session_id}: Failed to finalize/analyze/upload video")
-        if websocket.application_state == "connected":
-            try:
-                await websocket.send_text("Error processing video")
-            except Exception:
-                pass
+        logger.exception(
+            f"Session {session_id}: Failed to finalize/analyze/upload video"
+        )
