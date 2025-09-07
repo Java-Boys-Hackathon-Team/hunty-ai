@@ -9,10 +9,11 @@ readme = "README.md"
 requires-python = ">=3.11,<4.0"
 dependencies = [
     "fastapi (>=0.116.1,<0.117.0)",
-    "uvicorn (>=0.35.0,<0.36.0)",
+    "uvicorn[standard] (>=0.35.0,<0.36.0)",
     "sqlalchemy (>=2.0.43,<3.0.0)",
     "asyncpg (>=0.30.0,<0.31.0)",
-    "boto3 (>=1.40.25,<2.0.0)"
+    "boto3 (>=1.40.25,<2.0.0)",
+    "opencv-python (>=4.12.0.88,<5.0.0.0)"
 ]
 
 
