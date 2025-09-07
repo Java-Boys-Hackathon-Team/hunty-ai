@@ -35,6 +35,8 @@ rm -rf src/main/bundles
 
 # Шаг 5: Удаление всех образов из docker-compose
 docker rmi -f hunty-ai-hunty-hr:latest
+# Удаление образа backend по аналогии с hunty-hr
+docker rmi -f hunty-ai-hunty-interview-backend:latest
 
 docker-compose rm -f
 docker image prune -f --filter "label=com.docker.compose.project=hunty-ai"
