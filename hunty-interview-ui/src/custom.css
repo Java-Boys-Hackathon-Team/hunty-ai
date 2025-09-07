@@ -229,7 +229,7 @@ body {
     overflow: hidden; /* чтобы плавающие элементы не выходили за рамку */
 }
 
-/* Видео в режиме Live — вписывание, а не растяжение */
+/* Видео в режиме Live - вписывание, а не растяжение */
 .live .panel.camera .camera-video {
     width: auto;
     height: auto;
@@ -276,7 +276,7 @@ body {
     background: linear-gradient(90deg, rgba(86, 202, 139, 0.9), rgba(86, 167, 235, 0.9));
 }
 
-/* Кнопка mute в «пилюле» — компактная */
+/* Кнопка mute в «пилюле» - компактная */
 .live .panel.camera .mic-float .btn.ghost {
     padding: 6px 10px;
     border-radius: 10px;

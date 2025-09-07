@@ -6,6 +6,7 @@ import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import './custom.css'
 import {AlertTriangle, Loader2, Mic, MicOff, Play, RefreshCw, Square, Video, VideoOff} from 'lucide-react'
 
+// ----- типы -----
 type MeetingStatus = 'not_started' | 'running' | 'ended'
 type CamPermission = 'prompt' | 'granted' | 'denied' | 'unsupported'
 
@@ -24,7 +25,7 @@ type STTPartial = { text: string; fromMs: number; toMs: number }
 type STTFinal = { text: string; fromMs: number; toMs: number }
 
 interface UIState {
-    page: 'lobby' | 'live';
+    page: 'lobby' | 'live'
     status: MeetingStatus
 }
 
@@ -40,16 +41,20 @@ interface AudioChunkHeader {
     codec: 'opus/webm' | 'pcm16'
     sampleRate: number
     channels: number
-    // --- новенькое ---
-    rmsHint?: number         // фронтовая подсказка уровня
-    durationMs?: number      // длительность чанка
+    rmsHint?: number        // фронтовая подсказка VAD
+    durationMs?: number     // длительность чанка
 }
 
 const LS_END_AT_KEY = 'interview_end_at'
 const WS_MAX_RETRIES = 3
 
+// Бэкенд базовый адрес для REST/voice
 const backendBase = import.meta.env.PROD ? 'https://api.hunty-ai.javaboys.ru' : 'http://localhost:8000'
 
+// База для видео WS по ТЗ
+const VIDEO_WS_ORIGIN = import.meta.env.PROD ? 'wss://hunty-ai.javaboys.ru' : 'ws://localhost:8000'
+
+// ----- утилиты -----
 function formatRemaining(ms: number) {
     if (ms <= 0) return '00:00'
     let totalSeconds = Math.floor(ms / 1000)
@@ -61,6 +66,7 @@ function formatRemaining(ms: number) {
     return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
 }
 
+// Парсинг /meetings/{code}
 function parseMeetingCodeFromPath(): string | null {
     const parts = window.location.pathname.split('/').filter(Boolean)
     if (parts.length >= 2 && parts[0] === 'meetings') return decodeURIComponent(parts[1])
@@ -73,6 +79,23 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
     return res.json()
 }
 
+// Выбор поддерживаемого видео mime для MediaRecorder
+function pickBestVideoMime(): string {
+    const candidates = [
+        'video/webm;codecs=vp9',
+        'video/webm;codecs=vp8',
+        'video/webm'
+    ]
+    for (const t of candidates) {
+        try {
+            // @ts-ignore
+            if (window.MediaRecorder?.isTypeSupported?.(t)) return t
+        } catch {
+        }
+    }
+    return '' // пустая строка - пусть браузер решит сам
+}
+
 // ------------ Mic level (VU) hook -------------
 function useMicLevel(stream: MediaStream | null, enabled: boolean) {
     const [level, setLevel] = useState(0)
@@ -83,9 +106,10 @@ function useMicLevel(stream: MediaStream | null, enabled: boolean) {
 
     useEffect(() => {
         let stopped = false
+
         const cleanup = () => {
             if (rafRef.current != null) {
-                cancelAnimationFrame(rafRef.current);
+                cancelAnimationFrame(rafRef.current)
                 rafRef.current = null
             }
             try {
@@ -107,11 +131,12 @@ function useMicLevel(stream: MediaStream | null, enabled: boolean) {
         }
 
         if (!stream || !enabled) {
-            setLevel(0);
-            cleanup();
+            setLevel(0)
+            cleanup()
             return cleanup
         }
 
+        // пересоздаем цепочку
         cleanup()
         const Ctor = (window as any).AudioContext || (window as any).webkitAudioContext
         const ctx: AudioContext = new Ctor()
@@ -139,7 +164,7 @@ function useMicLevel(stream: MediaStream | null, enabled: boolean) {
         rafRef.current = requestAnimationFrame(tick)
 
         return () => {
-            stopped = true;
+            stopped = true
             cleanup()
         }
     }, [stream, enabled])
@@ -148,9 +173,7 @@ function useMicLevel(stream: MediaStream | null, enabled: boolean) {
 }
 
 // ------------ test tone -------------
-function generateTonePCM16(
-    durationMs: number, sampleRate = 24000, freqHz = 440, channels = 1, volume = 0.2
-): ArrayBuffer {
+function generateTonePCM16(durationMs: number, sampleRate = 24000, freqHz = 440, channels = 1, volume = 0.2): ArrayBuffer {
     const frames = Math.floor((durationMs / 1000) * sampleRate)
     const pcm = new Int16Array(frames * channels)
     const amp = Math.floor(32767 * Math.max(0, Math.min(1, volume)))
@@ -190,7 +213,7 @@ class PcmPlayer {
         const samples = buffer.byteLength / 2
         const floatBuf = new Float32Array(samples)
         for (let i = 0; i < samples; i++) {
-            const s = view.getInt16(i * 2, true);
+            const s = view.getInt16(i * 2, true)
             floatBuf[i] = Math.max(-1, Math.min(1, s / 32768))
         }
         this.queue.push(floatBuf)
@@ -236,6 +259,7 @@ class PcmPlayer {
     }
 }
 
+// ----- парсинг заголовка бинарного конверта -----
 function tryParseHeader(buf: ArrayBuffer, headerLen: number): unknown | null {
     if (buf.byteLength < headerLen) return null
     const headerBytes = buf.slice(0, headerLen)
@@ -274,8 +298,8 @@ function useVoiceWS(opts: {
 
     useEffect(() => {
         if (!enabled) {
-            if (wsRef.current) wsRef.current.close();
-            setConnected(false);
+            if (wsRef.current) wsRef.current.close()
+            setConnected(false)
             return
         }
 
@@ -288,8 +312,8 @@ function useVoiceWS(opts: {
         wsRef.current = ws
 
         ws.onopen = () => {
-            console.log('[WS] open', fullUrl);
-            setConnected(true);
+            console.log('[WS] open', fullUrl)
+            setConnected(true)
             setRetries(0)
         }
         ws.onclose = (ev) => {
@@ -304,10 +328,11 @@ function useVoiceWS(opts: {
         }
         ws.onmessage = async (ev) => {
             if (typeof ev.data === 'string') {
-                console.log('[WS] text', ev.data)
                 try {
                     const m = JSON.parse(ev.data)
-                    if (m.type === 'system') {
+                    if (m.type === 'diag') {
+                        console.log('[WS] diag', m)
+                    } else if (m.type === 'system') {
                         const raw = m.event as unknown
                         const evt: 'ready' | 'ended' | 'error' =
                             raw === 'ready' ? 'ready' : raw === 'ended' ? 'ended' : raw === 'error' ? 'error' : 'error'
@@ -318,10 +343,12 @@ function useVoiceWS(opts: {
                         onFinal(m as STTFinal)
                     }
                 } catch {
+                    console.log('[WS] text', ev.data)
                 }
                 return
             }
 
+            // бинарные чанки TTS
             let ab: ArrayBuffer | null = null
             if (ev.data instanceof ArrayBuffer) ab = ev.data as ArrayBuffer
             else if (ev.data instanceof Blob) ab = await (ev.data as Blob).arrayBuffer()
@@ -329,60 +356,48 @@ function useVoiceWS(opts: {
             if (!ab) return
 
             const {header, payload, headerLen} = parseBinaryEnvelopeSmart(ab)
-            const dv16 = new DataView(payload)
-            const first: number[] = []
-            for (let off = 0; off < Math.min(16, payload.byteLength); off += 2) first.push(dv16.getInt16(off, true))
-            console.log('[TTS] first16', first, 'len=', payload.byteLength)
-
             const h = (header || {}) as Partial<TTSEnvelopeHeader & {
-                type?: string;
-                codec?: string;
-                sampleRate?: number;
-                channels?: number
+                type?: string; codec?: string; sampleRate?: number; channels?: number
             }>
             const type = h.type || 'unknown'
             const codec = h.codec || 'unknown'
             const sr = h.sampleRate ?? 24000
             const ch = h.channels ?? 1
 
+            // диагностика rms
             const dv = new DataView(payload)
             let sum = 0
             for (let i = 0; i + 1 < payload.byteLength; i += 2) {
-                const s = dv.getInt16(i, true) / 32768;
+                const s = dv.getInt16(i, true) / 32768
                 sum += s * s
             }
             const rms = Math.sqrt(sum / Math.max(1, payload.byteLength / 2))
-            console.log('[TTS] incoming rms=', +rms.toFixed(4), 'sr=', sr, 'ch=', ch)
-            console.log('[WS] bin', {
-                headerLen,
-                type,
-                codec,
-                sampleRate: sr,
-                channels: ch,
-                bytes: payload.byteLength,
-                rms: +rms.toFixed(4)
-            })
+            console.log('[TTS] rms=', +rms.toFixed(4), 'sr=', sr, 'ch=', ch, 'len=', payload.byteLength)
 
             if (type === 'tts.chunk' && codec.toLowerCase().includes('pcm16')) {
                 onTTSChunk(payload, {type: 'tts.chunk', codec: codec as string, sampleRate: sr, channels: ch})
                 return
             }
             if (type === 'unknown' || headerLen === 0) {
-                console.warn('[WS] no/unknown header — fallback: assume PCM16 24k mono')
+                console.warn('[WS] no/unknown header - fallback to PCM16 24k mono')
                 onTTSChunk(payload, {type: 'tts.chunk', codec: 'pcm16', sampleRate: 24000, channels: 1})
                 return
             }
             if (type === 'tts.chunk' && !codec.toLowerCase().includes('pcm16')) {
-                console.warn(`[WS] unsupported codec for tts.chunk: ${codec} — please send PCM16. Fallback: beep.`)
+                console.warn(`[WS] unsupported codec: ${codec} - fallback beep`)
                 const testBuf = generateTonePCM16(200, 24000, 660, 1, 0.25)
                 onTTSChunk(testBuf, {type: 'tts.chunk', codec: 'pcm16', sampleRate: 24000, channels: 1})
             }
         }
 
         return () => {
-            closedByUs = true;
-            if (retryTimer != null) clearTimeout(retryTimer);
-            ws.close()
+            closedByUs = true
+            if (retryTimer != null) clearTimeout(retryTimer)
+            try {
+                ws.close()
+            } catch {
+            }
+            wsRef.current = null
         }
     }, [url, token, enabled, retries])
 
@@ -417,6 +432,7 @@ const MeetingApp: React.FC = () => {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
+    // health лог
     const healthUrl = `${backendBase}/health`
     useEffect(() => {
         let cancelled = false
@@ -444,6 +460,7 @@ const MeetingApp: React.FC = () => {
         }
     }, [healthUrl])
 
+    // управление устройствами
     const [micEnabled, setMicEnabled] = useState(true)
     const [camEnabled, setCamEnabled] = useState(false)
 
@@ -451,6 +468,7 @@ const MeetingApp: React.FC = () => {
     const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
     const level = useMicLevel(localStream, micEnabled)
 
+    // актуальный уровень для rmsHint
     const latestLevelRef = useRef(0)
     useEffect(() => {
         latestLevelRef.current = level
@@ -464,31 +482,58 @@ const MeetingApp: React.FC = () => {
     const [camPerm, setCamPerm] = useState<CamPermission>('prompt')
     const [camRequesting, setCamRequesting] = useState(false)
 
+    // анимация аватара
     const lastTtsAtRef = useRef<number>(0)
     const ttsPlayerRef = useRef<PcmPlayer | null>(null)
     const [avatarSpeaking, setAvatarSpeaking] = useState(false)
 
+    // MediaRecorder для аудио
     const recorderRef = useRef<MediaRecorder | null>(null)
 
+    // видеозапись refs
+    const videoWSRef = useRef<WebSocket | null>(null)
+    const videoRecRef = useRef<MediaRecorder | null>(null)
+
+    // первичная загрузка встречи + восстановление при перезагрузке
     useEffect(() => {
         (async () => {
             try {
                 if (!code) throw new Error('Meeting code not found in URL')
                 const info = await fetchJSON<MeetingInfo>(`${backendBase}/meetings/${encodeURIComponent(code)}`)
-                setMeeting(info)
 
-                let status: MeetingStatus = info.status
+                // если уже running и нет interviewId/token - делаем /start для восстановления
+                let effective = info
+                if (info.status === 'running' && (!info.interviewId || !info.token)) {
+                    try {
+                        const res = await fetchJSON<{
+                            startAt: string;
+                            endAt: string;
+                            token?: string;
+                            interviewId: string
+                        }>(
+                            `${backendBase}/meetings/${encodeURIComponent(info.code)}/start`, {method: 'POST'}
+                        )
+                        effective = {...info, token: res.token, interviewId: res.interviewId, endAt: res.endAt}
+                    } catch {
+                    }
+                }
+
+                setMeeting(effective)
+
+                let status: MeetingStatus = effective.status
                 const ls = localStorage.getItem(LS_END_AT_KEY)
                 if (ls) {
                     const t = Number(ls)
                     if (!isNaN(t) && t > Date.now()) {
-                        status = 'running';
+                        status = 'running'
                         setEndAt(t)
-                    } else localStorage.removeItem(LS_END_AT_KEY)
-                } else if (info.endAt) {
-                    const t = new Date(info.endAt).getTime()
+                    } else {
+                        localStorage.removeItem(LS_END_AT_KEY)
+                    }
+                } else if (effective.endAt) {
+                    const t = new Date(effective.endAt).getTime()
                     if (t > Date.now()) {
-                        status = 'running';
+                        status = 'running'
                         setEndAt(t)
                     }
                 }
@@ -502,6 +547,7 @@ const MeetingApp: React.FC = () => {
         })()
     }, [code])
 
+    // глобальный тик для таймера и анимации речи с 1c хвостом
     useEffect(() => {
         const t = setInterval(() => {
             setNow(Date.now())
@@ -512,6 +558,21 @@ const MeetingApp: React.FC = () => {
         return () => clearInterval(t)
     }, [])
 
+    // одноразовый нудж для разблокировки аудио
+    useEffect(() => {
+        const handler = async () => {
+            if (!ttsPlayerRef.current) ttsPlayerRef.current = new PcmPlayer()
+            try {
+                await ttsPlayerRef.current.resume()
+            } catch {
+            }
+            window.removeEventListener('pointerdown', handler, true)
+        }
+        window.addEventListener('pointerdown', handler, true)
+        return () => window.removeEventListener('pointerdown', handler, true)
+    }, [])
+
+    // слежение за разрешением на камеру
     useEffect(() => {
         let unmounted = false
 
@@ -542,10 +603,11 @@ const MeetingApp: React.FC = () => {
         }
     }, [])
 
+    // поток микрофона
     useEffect(() => {
         if (!micEnabled) {
-            localStream?.getAudioTracks().forEach(t => t.stop());
-            setLocalStream(null);
+            localStream?.getAudioTracks().forEach(t => t.stop())
+            setLocalStream(null)
             return
         }
         if (localStream) return
@@ -561,6 +623,7 @@ const MeetingApp: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [micEnabled])
 
+    // поток камеры
     useEffect(() => {
         let cancelled = false
 
@@ -569,18 +632,18 @@ const MeetingApp: React.FC = () => {
             try {
                 const s = await navigator.mediaDevices.getUserMedia({video: true, audio: false})
                 if (cancelled) {
-                    s.getVideoTracks().forEach(t => t.stop());
+                    s.getVideoTracks().forEach(t => t.stop())
                     return
                 }
                 setCamPerm('granted')
                 setCameraStream(prev => {
-                    prev?.getVideoTracks().forEach(t => t.stop());
+                    prev?.getVideoTracks().forEach(t => t.stop())
                     return s
                 })
             } catch {
                 setCamPerm('denied')
                 setCameraStream(prev => {
-                    prev?.getVideoTracks().forEach(t => t.stop());
+                    prev?.getVideoTracks().forEach(t => t.stop())
                     return null
                 })
             } finally {
@@ -590,7 +653,7 @@ const MeetingApp: React.FC = () => {
 
         if (camEnabled) openCamera()
         else setCameraStream(prev => {
-            prev?.getVideoTracks().forEach(t => t.stop());
+            prev?.getVideoTracks().forEach(t => t.stop())
             return null
         })
         return () => {
@@ -598,6 +661,7 @@ const MeetingApp: React.FC = () => {
         }
     }, [camEnabled])
 
+    // старт встречи
     const startMeeting = useCallback(async () => {
         if (!meeting) return
         try {
@@ -619,6 +683,7 @@ const MeetingApp: React.FC = () => {
         }
     }, [meeting])
 
+    // завершение встречи
     const endMeeting = useCallback(async () => {
         if (!meeting) return
         try {
@@ -629,13 +694,20 @@ const MeetingApp: React.FC = () => {
         setUI({page: 'lobby', status: 'ended'})
     }, [meeting])
 
+    // URL для голосового WS
     const wsUrl = useMemo(() => {
         const id = meeting?.interviewId || ''
         const wsBase = backendBase.replace(/^http/, 'ws')
         return `${wsBase}/voice?interviewId=${encodeURIComponent(id)}`
     }, [meeting?.interviewId])
 
+    // сбрасываем флаг старта при смене url
     const startedRef = useRef(false)
+    useEffect(() => {
+        startedRef.current = false
+    }, [wsUrl, meeting?.interviewId])
+
+    // WebSocket для голоса
     const {connected, sendJSON, sendAudioChunk} = useVoiceWS({
         url: wsUrl,
         token: meeting?.token,
@@ -663,6 +735,7 @@ const MeetingApp: React.FC = () => {
         },
     })
 
+    // запись и отправка микрофона
     const stopStreaming = useCallback(() => {
         try {
             if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop()
@@ -690,7 +763,7 @@ const MeetingApp: React.FC = () => {
                     codec: 'opus/webm',
                     sampleRate: 48000,
                     channels: 1,
-                    rmsHint: Math.max(0, Math.min(1, latestLevelRef.current || 0)), // <= подсказка VAD
+                    rmsHint: Math.max(0, Math.min(1, latestLevelRef.current || 0)),
                     durationMs: CHUNK_MS,
                 }
                 sendAudioChunk(arrayBuf, header)
@@ -701,10 +774,8 @@ const MeetingApp: React.FC = () => {
             }
 
             const [track] = localStream.getAudioTracks()
-            if (track) {
-                track.onended = () => {
-                    stopStreaming()
-                }
+            if (track) track.onended = () => {
+                stopStreaming()
             }
 
             rec.start(CHUNK_MS)
@@ -730,6 +801,133 @@ const MeetingApp: React.FC = () => {
         }
     }, [ui.page, micEnabled, localStream, beginStreaming, stopStreaming])
 
+    // ===== ВИДЕО WS ЖИЗНЕННЫЙ ЦИКЛ, ПРИВЯЗАННЫЙ К ПЕРЕКЛЮЧАТЕЛЮ КАМЕРЫ =====
+
+    // отправка сигнала окончания записи и остановка MediaRecorder
+    const finishVideoRecording = useCallback(() => {
+        try {
+            const rec = videoRecRef.current
+            if (rec && rec.state !== 'inactive') rec.stop()
+        } catch {
+        }
+        const ws = videoWSRef.current
+        try {
+            if (ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({action: 'end_of_stream'}))
+            }
+        } catch {
+        }
+    }, [])
+
+    // полная остановка соединения
+    const stopVideoPipe = useCallback(() => {
+        finishVideoRecording()
+        try {
+            if (videoWSRef.current && videoWSRef.current.readyState === WebSocket.OPEN) {
+                videoWSRef.current.close()
+            }
+        } catch {
+        }
+        videoWSRef.current = null
+        videoRecRef.current = null
+    }, [finishVideoRecording])
+
+    // защищаемся от закрытия вкладки
+    useEffect(() => {
+        const onUnload = () => {
+            try {
+                finishVideoRecording()
+            } catch {
+            }
+        }
+        window.addEventListener('beforeunload', onUnload)
+        return () => window.removeEventListener('beforeunload', onUnload)
+    }, [finishVideoRecording])
+
+    // автоинициализация WS для видео, когда камера включена в Live
+    useEffect(() => {
+        // условия запуска: Live, камера включена, есть поток камеры и есть код встречи
+        if (ui.page === 'live' && camEnabled && cameraStream && meeting?.code) {
+            // если уже есть активное соединение, не создаем новое
+            if (videoWSRef.current && videoWSRef.current.readyState === WebSocket.OPEN) return
+            const url = `${VIDEO_WS_ORIGIN}/ws/stream/${encodeURIComponent(meeting.code)}`
+            const ws = new WebSocket(url)
+            videoWSRef.current = ws
+
+            ws.onopen = () => {
+                // проверим наличие живого видеотрека
+                const vTrack = cameraStream.getVideoTracks?.()[0]
+                if (!vTrack || vTrack.readyState !== 'live') {
+                    console.warn('[VideoRec] нет живого видео-трека')
+                }
+
+                try {
+                    const mime = pickBestVideoMime()
+                    console.log('[VideoRec] mime =', mime || '(auto)')
+
+                    const rec = new MediaRecorder(cameraStream, {
+                        mimeType: mime || undefined,
+                        videoBitsPerSecond: 2_000_000
+                    })
+                    videoRecRef.current = rec
+
+                    rec.onstart = () => console.log('[VideoRec] start')
+                    rec.onstop = () => console.log('[VideoRec] stop')
+                    rec.onerror = (e) => {
+                        console.error('[VideoRec] error', e);
+                        stopVideoPipe()
+                    }
+
+                    rec.ondataavailable = async (event) => {
+                        const size = event?.data?.size ?? 0
+                        console.log('[VideoRec] chunk size =', size)
+                        if (!event.data || size === 0) return
+                        try {
+                            // отправляем как ArrayBuffer, не Blob
+                            const buf = await event.data.arrayBuffer()
+                            if (ws.readyState === WebSocket.OPEN) {
+                                ws.send(buf)
+                            }
+                        } catch (e) {
+                            console.error('[VideoRec] arrayBuffer/send failed', e)
+                        }
+                    }
+
+                    // чанк каждые 2 сек как в статическом примере
+                    rec.start(2000)
+                } catch (e) {
+                    console.error('MediaRecorder init error:', e)
+                    stopVideoPipe()
+                }
+            }
+
+            ws.onmessage = (evt) => {
+                console.log('[VideoWS] msg:', typeof evt.data === 'string' ? evt.data : '(binary)')
+            }
+            ws.onclose = (ev) => {
+                console.log('[VideoWS] close', ev.code, ev.reason)
+                try {
+                    const rec = videoRecRef.current
+                    if (rec && rec.state !== 'inactive') rec.stop()
+                } catch {
+                }
+            }
+            ws.onerror = (e) => {
+                console.error('[VideoWS] error', e)
+                stopVideoPipe()
+            }
+
+            return () => {
+                // при смене зависимостей закрываем канал
+                stopVideoPipe()
+            }
+        } else {
+            // если выходим из Live или камера выключена, закрываем все
+            stopVideoPipe()
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [ui.page, camEnabled, cameraStream, meeting?.code])
+
     const remainingMs = useMemo(() => (endAt ? endAt - now : 0), [endAt, now])
     const split = ui.page === 'live' && camEnabled
 
@@ -742,10 +940,13 @@ const MeetingApp: React.FC = () => {
         ttsPlayerRef.current.enqueuePCM16(buf, sr, 1)
     }, [])
 
+    // ----- UI -----
     if (loading) {
-        return (<div className="page loading">
-            <div className="loader"><Loader2 className="spin"/> Загрузка…</div>
-        </div>)
+        return (
+            <div className="page loading">
+                <div className="loader"><Loader2 className="spin"/> Загрузка…</div>
+            </div>
+        )
     }
     if (error) {
         return (
@@ -765,11 +966,13 @@ const MeetingApp: React.FC = () => {
 
     return (
         <div className="page">
+            {/* верхняя панель */}
             <header className="topbar">
                 <div className="topbar-inner">
                     {ui.status === 'running' && endAt ? (
-                        <div>Встреча с кандидатом <strong>{meeting.candidateName}</strong>, оставшееся
-                            время: <strong>{formatRemaining(remainingMs)}</strong></div>
+                        <div>Встреча с кандидатом <strong>{meeting.candidateName}</strong>, оставшееся время:
+                            <strong> {formatRemaining(remainingMs)}</strong>
+                        </div>
                     ) : (
                         <div>Встреча с кандидатом <strong>{meeting.candidateName}</strong></div>
                     )}
@@ -777,14 +980,15 @@ const MeetingApp: React.FC = () => {
                 </div>
             </header>
 
+            {/* сцена */}
             <main className={`stage ${split ? 'split' : ''}`}>
                 {ui.page === 'lobby' && (
                     <Lobby
                         greeting={meeting.greeting}
                         micEnabled={micEnabled}
-                        onMicToggle={() => setMicEnabled((m) => !m)}
+                        onMicToggle={() => setMicEnabled(m => !m)}
                         camEnabled={camEnabled}
-                        onCamToggle={() => setCamEnabled((c) => !c)}
+                        onCamToggle={() => setCamEnabled(c => !c)}
                         level={level}
                         candidateName={meeting.candidateName}
                         status={ui.status}
@@ -798,11 +1002,10 @@ const MeetingApp: React.FC = () => {
                         onTestSound={handleTestSound}
                     />
                 )}
-
                 {ui.page === 'live' && (
                     <LiveView
                         micEnabled={micEnabled}
-                        onMicToggle={() => setMicEnabled((m) => !m)}
+                        onMicToggle={() => setMicEnabled(m => !m)}
                         camEnabled={camEnabled}
                         level={level}
                         subtitles={subtitles}
@@ -812,11 +1015,12 @@ const MeetingApp: React.FC = () => {
                 )}
             </main>
 
+            {/* нижняя панель */}
             <footer className="bottombar">
                 <div className="bottombar-inner">
                     <ToggleButton
                         active={micEnabled}
-                        onClick={() => setMicEnabled((m) => !m)}
+                        onClick={() => setMicEnabled(m => !m)}
                         label={micEnabled ? 'Микрофон включен' : 'Микрофон выключен'}
                         activeClass="mic-active"
                         iconOn={<Mic/>}
@@ -824,7 +1028,7 @@ const MeetingApp: React.FC = () => {
                     />
                     <ToggleButton
                         active={camEnabled}
-                        onClick={() => setCamEnabled((c) => !c)}
+                        onClick={() => setCamEnabled(c => !c)}
                         label={camEnabled ? 'Камера включена' : 'Камера выключена'}
                         iconOn={<Video/>}
                         iconOff={<VideoOff/>}
@@ -882,38 +1086,29 @@ const Lobby: React.FC<{
     onCamRetry: () => void
     onTestSound: () => void
 }> = ({
-          greeting,
-          micEnabled,
-          onMicToggle,
-          camEnabled,
-          onCamToggle,
-          level,
-          candidateName,
-          status,
-          cameraStream,
-          camPerm,
-          camRequesting,
-          onCamRetry,
-          onTestSound
+          greeting, micEnabled, onMicToggle, camEnabled, onCamToggle, level,
+          candidateName, status, cameraStream, camPerm, camRequesting, onCamRetry, onTestSound
       }) => {
     const videoRef = useRef<HTMLVideoElement | null>(null)
     useEffect(() => {
         if (!videoRef.current) return
         if (cameraStream) {
-            videoRef.current.srcObject = cameraStream;
+            videoRef.current.srcObject = cameraStream
             videoRef.current.play().catch(() => {
             })
-        } else (videoRef.current as HTMLVideoElement).srcObject = null
+        } else {
+            (videoRef.current as HTMLVideoElement).srcObject = null
+        }
     }, [cameraStream])
 
     const camContent = (() => {
         if (!camEnabled) return <span>Камера выключена</span>
-        if (camRequesting) return <span>Запрашиваем доступ к камере… Подтвердите в браузере.</span>
-        if (camPerm === 'prompt') return <span>Ожидаем подтверждения… Проверьте окно разрешения.</span>
+        if (camRequesting) return <span>Запрашиваем доступ к камере... Подтвердите в браузере.</span>
+        if (camPerm === 'prompt') return <span>Ожидаем подтверждения... Проверьте окно разрешения.</span>
         if (camPerm === 'denied') {
             return (
                 <div style={{display: 'grid', gap: 8, placeItems: 'center', padding: 12}}>
-                    <span>Доступ к камере заблокирован. Разрешите доступ в настройках сайта и нажмите «Повторить».</span>
+                    <span>Доступ к камере заблокирован. Разрешите доступ в настройках сайта и нажмите "Повторить".</span>
                     <button className="btn" onClick={onCamRetry}>Повторить</button>
                 </div>
             )
@@ -937,6 +1132,7 @@ const Lobby: React.FC<{
                 <div className="device-check">
                     <h2>Проверка устройств</h2>
                     <div className="device-row">
+                        {/* микрофон */}
                         <div className="device">
                             <div className="device-head"><Mic/> Микрофон</div>
                             <div className="vu">
@@ -951,6 +1147,7 @@ const Lobby: React.FC<{
                             </div>
                         </div>
 
+                        {/* камера */}
                         <div className="device">
                             <div className="device-head"><Video/> Камера</div>
                             <div className="camera-preview placeholder"
@@ -986,10 +1183,12 @@ const LiveView: React.FC<{
     useEffect(() => {
         if (!videoRef.current) return
         if (cameraStream) {
-            videoRef.current.srcObject = cameraStream;
+            videoRef.current.srcObject = cameraStream
             videoRef.current.play().catch(() => {
             })
-        } else (videoRef.current as HTMLVideoElement).srcObject = null
+        } else {
+            (videoRef.current as HTMLVideoElement).srcObject = null
+        }
     }, [cameraStream])
 
     return (
