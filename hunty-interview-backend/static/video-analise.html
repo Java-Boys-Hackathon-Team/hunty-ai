@@ -1,0 +1,165 @@
+<!-- static/video-analise.html -->
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Video Analysis</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #video-container { margin-bottom: 20px; }
+        #startButton, #stopButton { padding: 10px 20px; margin-right: 10px; }
+        #status { margin-top: 20px; font-weight: bold; }
+        #sessionId { margin-top: 10px; padding: 5px; }
+    </style>
+</head>
+<body>
+    <h1>Video Analysis with WebCam</h1>
+    
+    <div id="video-container">
+        <video id="video" autoplay playsinline muted width="640" height="480"></video>
+    </div>
+    
+    <div>
+        <button id="startButton">Start Recording</button>
+        <button id="stopButton" disabled>Stop Recording</button>
+    </div>
+    
+    <div id="sessionId">Session ID: <span id="sessionIdValue"></span></div>
+    <div id="status">Status: Ready</div>
+    
+    <script>
+        const video = document.getElementById('video');
+        const startButton = document.getElementById('startButton');
+        const stopButton = document.getElementById('stopButton');
+        const statusDiv = document.getElementById('status');
+        const sessionIdSpan = document.getElementById('sessionIdValue');
+        
+        let mediaRecorder;
+        let socket;
+        let stream;
+        let sessionId;
+        
+        // Generate a unique session ID
+        function generateSessionId() {
+            return 'session_' + Math.random().toString(36).substring(2, 15);
+        }
+        
+        // Initialize WebSocket connection
+        function initWebSocket() {
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = `${protocol}//${window.location.host}/ws/stream/${sessionId}`;
+            
+            socket = new WebSocket(wsUrl);
+            
+            socket.onopen = () => {
+                statusDiv.textContent = 'Status: WebSocket connected';
+                console.log('WebSocket connected for session:', sessionId);
+            };
+            
+            socket.onclose = () => {
+                statusDiv.textContent = 'Status: WebSocket disconnected';
+                console.log('WebSocket disconnected');
+            };
+            
+            socket.onerror = (error) => {
+                statusDiv.textContent = 'Status: WebSocket error';
+                console.error('WebSocket error:', error);
+            };
+            
+            socket.onmessage = (event) => {
+                console.log('Message from server:', event.data);
+                statusDiv.textContent = `Status: ${event.data}`;
+            };
+        }
+        
+        // Request access to webcam
+        async function initCamera() {
+            try {
+                stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { width: 640, height: 480 },
+                    audio: false
+                });
+                video.srcObject = stream;
+                statusDiv.textContent = 'Status: Camera accessed successfully';
+            } catch (error) {
+                statusDiv.textContent = `Status: Error accessing camera: ${error.message}`;
+                console.error('Error accessing camera:', error);
+            }
+        }
+        
+        // Start recording
+        function startRecording() {
+            if (!stream) {
+                statusDiv.textContent = 'Status: No video stream available';
+                return;
+            }
+            
+            // Generate session ID if not already set
+            if (!sessionId) {
+                sessionId = generateSessionId();
+                sessionIdSpan.textContent = sessionId;
+                initWebSocket();
+            }
+            
+            const options = { 
+                mimeType: 'video/webm; codecs=vp9',
+                videoBitsPerSecond: 2000000 // 2 Mbps
+            };
+            
+            try {
+                mediaRecorder = new MediaRecorder(stream, options);
+            } catch (e) {
+                console.error('Exception while creating MediaRecorder:', e);
+                statusDiv.textContent = `Status: Error creating MediaRecorder: ${e}`;
+                return;
+            }
+            
+            mediaRecorder.ondataavailable = (event) => {
+                if (event.data && event.data.size > 0) {
+                    // Send chunk via WebSocket if connected
+                    if (socket && socket.readyState === WebSocket.OPEN) {
+                        socket.send(event.data);
+                    }
+                }
+            };
+            
+            mediaRecorder.start(2000); // Collect data in 2-second chunks
+            statusDiv.textContent = 'Status: Recording started (2-second chunks)';
+            
+            startButton.disabled = true;
+            stopButton.disabled = false;
+        }
+        
+        // Stop recording
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+                statusDiv.textContent = 'Status: Recording stopped';
+            }
+            
+            if (stream) {
+                stream.getTracks().forEach(track => track.stop());
+            }
+            
+            if (socket) {
+                socket.close();
+            }
+            
+            startButton.disabled = false;
+            stopButton.disabled = true;
+        }
+        
+        // Initialize the application
+        async function init() {
+            await initCamera();
+            
+            startButton.addEventListener('click', startRecording);
+            stopButton.addEventListener('click', stopRecording);
+        }
+        
+        // Start initialization when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>
