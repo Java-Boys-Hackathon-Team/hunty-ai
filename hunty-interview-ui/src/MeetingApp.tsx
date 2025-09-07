@@ -878,11 +878,18 @@ const MeetingApp: React.FC = () => {
                         stopVideoPipe()
                     }
 
-                    rec.ondataavailable = (event) => {
+                    rec.ondataavailable = async (event) => {
                         const size = event?.data?.size ?? 0
                         console.log('[VideoRec] chunk size =', size)
-                        if (event.data && size > 0 && ws.readyState === WebSocket.OPEN) {
-                            ws.send(event.data) // как в статике
+                        if (!event.data || size === 0) return
+                        try {
+                            // отправляем как ArrayBuffer, не Blob
+                            const buf = await event.data.arrayBuffer()
+                            if (ws.readyState === WebSocket.OPEN) {
+                                ws.send(buf)
+                            }
+                        } catch (e) {
+                            console.error('[VideoRec] arrayBuffer/send failed', e)
                         }
                     }
 
