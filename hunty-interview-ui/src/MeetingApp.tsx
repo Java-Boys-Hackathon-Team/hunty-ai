@@ -4,11 +4,7 @@
 
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import './custom.css'
-import {AlertTriangle, Loader2, Mic, MicOff, Play, RefreshCw, Square, Video, VideoOff,} from 'lucide-react'
-
-// ----------------------
-// Types & helpers
-// ----------------------
+import {AlertTriangle, Loader2, Mic, MicOff, Play, RefreshCw, Square, Video, VideoOff} from 'lucide-react'
 
 type MeetingStatus = 'not_started' | 'running' | 'ended'
 type CamPermission = 'prompt' | 'granted' | 'denied' | 'unsupported'
@@ -28,7 +24,7 @@ type STTPartial = { text: string; fromMs: number; toMs: number }
 type STTFinal = { text: string; fromMs: number; toMs: number }
 
 interface UIState {
-    page: 'lobby' | 'live'
+    page: 'lobby' | 'live';
     status: MeetingStatus
 }
 
@@ -44,15 +40,15 @@ interface AudioChunkHeader {
     codec: 'opus/webm' | 'pcm16'
     sampleRate: number
     channels: number
+    // --- новенькое ---
+    rmsHint?: number         // фронтовая подсказка уровня
+    durationMs?: number      // длительность чанка
 }
 
 const LS_END_AT_KEY = 'interview_end_at'
 const WS_MAX_RETRIES = 3
 
-// Backend base URL (prod/dev)
-const backendBase = import.meta.env.PROD
-    ? 'https://api.hunty-ai.javaboys.ru'
-    : 'http://localhost:8000'
+const backendBase = import.meta.env.PROD ? 'https://api.hunty-ai.javaboys.ru' : 'http://localhost:8000'
 
 function formatRemaining(ms: number) {
     if (ms <= 0) return '00:00'
@@ -62,12 +58,9 @@ function formatRemaining(ms: number) {
     const minutes = Math.floor(totalSeconds / 60)
     const seconds = totalSeconds % 60
     const pad = (n: number) => String(n).padStart(2, '0')
-    return hours > 0
-        ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`
-        : `${pad(minutes)}:${pad(seconds)}`
+    return hours > 0 ? `${pad(hours)}:${pad(minutes)}:${pad(seconds)}` : `${pad(minutes)}:${pad(seconds)}`
 }
 
-// Parse meeting code from URL: https://example.net/meetings/{code}
 function parseMeetingCodeFromPath(): string | null {
     const parts = window.location.pathname.split('/').filter(Boolean)
     if (parts.length >= 2 && parts[0] === 'meetings') return decodeURIComponent(parts[1])
@@ -80,10 +73,7 @@ async function fetchJSON<T>(url: string, init?: RequestInit): Promise<T> {
     return res.json()
 }
 
-// ----------------------
-// Mic level (VU) hook (safe in StrictMode)
-// ----------------------
-
+// ------------ Mic level (VU) hook -------------
 function useMicLevel(stream: MediaStream | null, enabled: boolean) {
     const [level, setLevel] = useState(0)
     const rafRef = useRef<number | null>(null)
@@ -93,10 +83,9 @@ function useMicLevel(stream: MediaStream | null, enabled: boolean) {
 
     useEffect(() => {
         let stopped = false
-
         const cleanup = () => {
             if (rafRef.current != null) {
-                cancelAnimationFrame(rafRef.current)
+                cancelAnimationFrame(rafRef.current);
                 rafRef.current = null
             }
             try {
@@ -118,27 +107,23 @@ function useMicLevel(stream: MediaStream | null, enabled: boolean) {
         }
 
         if (!stream || !enabled) {
-            setLevel(0)
-            cleanup()
+            setLevel(0);
+            cleanup();
             return cleanup
         }
 
-        // reset previous chain defensively
         cleanup()
-
         const Ctor = (window as any).AudioContext || (window as any).webkitAudioContext
         const ctx: AudioContext = new Ctor()
         const source = ctx.createMediaStreamSource(stream)
         const analyser = ctx.createAnalyser()
         analyser.fftSize = 512
         source.connect(analyser)
-
         audioCtxRef.current = ctx
         sourceRef.current = source
         analyserRef.current = analyser
 
         const data = new Uint8Array(analyser.frequencyBinCount)
-
         const tick = () => {
             if (stopped) return
             analyser.getByteTimeDomainData(data)
@@ -162,33 +147,21 @@ function useMicLevel(stream: MediaStream | null, enabled: boolean) {
     return level
 }
 
-// ----------------------
-// Helpers: test tone PCM16
-// ----------------------
-
+// ------------ test tone -------------
 function generateTonePCM16(
-    durationMs: number,
-    sampleRate = 24000,
-    freqHz = 440,
-    channels = 1,
-    volume = 0.2
+    durationMs: number, sampleRate = 24000, freqHz = 440, channels = 1, volume = 0.2
 ): ArrayBuffer {
     const frames = Math.floor((durationMs / 1000) * sampleRate)
     const pcm = new Int16Array(frames * channels)
     const amp = Math.floor(32767 * Math.max(0, Math.min(1, volume)))
     for (let i = 0; i < frames; i++) {
         const s = Math.floor(amp * Math.sin((2 * Math.PI * freqHz * i) / sampleRate))
-        for (let ch = 0; ch < channels; ch++) {
-            pcm[i * channels + ch] = s
-        }
+        for (let ch = 0; ch < channels; ch++) pcm[i * channels + ch] = s
     }
     return pcm.buffer
 }
 
-// ----------------------
-// PCM16 Player for TTS chunks
-// ----------------------
-
+// ------------ PCM16 player -------------
 class PcmPlayer {
     private ctx: AudioContext
     private gain: GainNode
@@ -199,7 +172,6 @@ class PcmPlayer {
         const Ctor: typeof AudioContext = (window as any).AudioContext || (window as any).webkitAudioContext
         this.ctx = new Ctor()
         this.gain = this.ctx.createGain()
-        // Чуть поднимем уровень, чтобы мок был слышнее
         this.gain.gain.value = 1.25
         this.gain.connect(this.ctx.destination)
     }
@@ -218,7 +190,7 @@ class PcmPlayer {
         const samples = buffer.byteLength / 2
         const floatBuf = new Float32Array(samples)
         for (let i = 0; i < samples; i++) {
-            const s = view.getInt16(i * 2, true)
+            const s = view.getInt16(i * 2, true);
             floatBuf[i] = Math.max(-1, Math.min(1, s / 32768))
         }
         this.queue.push(floatBuf)
@@ -227,32 +199,21 @@ class PcmPlayer {
 
     private async playFromQueue(sampleRate: number, channels: number) {
         this.isPlaying = true
-        // ВАЖНО: гарантированно «будим» контекст перед стартом
         await this.resume()
-
         while (this.queue.length) {
             const chunk = this.queue.shift()!
-            // Длина буфера — это число кадров (а не байт)
             const frames = chunk.length
             const audioBuf = this.ctx.createBuffer(channels, frames, sampleRate)
-
-            // Моно-чанк копируем во все каналы (если вдруг ch>1)
-            for (let ch = 0; ch < channels; ch++) {
-                audioBuf.getChannelData(ch).set(chunk)
-            }
-
+            for (let ch = 0; ch < channels; ch++) audioBuf.getChannelData(ch).set(chunk)
             const src = this.ctx.createBufferSource()
             src.buffer = audioBuf
             src.connect(this.gain)
-
             await new Promise<void>((resolve) => {
                 src.onended = () => resolve()
-                // ВАЖНО: стартуем чуть в будущем, чтобы избежать «нулевого» старта
                 const t0 = this.ctx.currentTime + 0.01
                 try {
                     src.start(t0)
                 } catch {
-                    // в редких случаях, если уже «прошли», пробуем немедленно
                     try {
                         src.start()
                     } catch {
@@ -289,24 +250,14 @@ function tryParseHeader(buf: ArrayBuffer, headerLen: number): unknown | null {
 }
 
 function parseBinaryEnvelopeSmart(buf: ArrayBuffer): { header: unknown; payload: ArrayBuffer; headerLen: number } {
-    // 1) Пытаемся 256-байтный заголовок
     let header = tryParseHeader(buf, 256)
-    if (header && typeof header === 'object') {
-        return {header, payload: buf.slice(256), headerLen: 256}
-    }
-    // 2) Пытаемся 16-байтный заголовок (вдруг сервер шлёт короткий пролог)
+    if (header && typeof header === 'object') return {header, payload: buf.slice(256), headerLen: 256}
     header = tryParseHeader(buf, 16)
-    if (header && typeof header === 'object') {
-        return {header, payload: buf.slice(16), headerLen: 16}
-    }
-    // 3) Без заголовка — считаем всё payload (PCM16 24k mono как фолбэк)
+    if (header && typeof header === 'object') return {header, payload: buf.slice(16), headerLen: 16}
     return {header: null, payload: buf, headerLen: 0}
 }
 
-// ----------------------
-// WebSocket hook
-// ----------------------
-
+// ------------ WebSocket hook -------------
 function useVoiceWS(opts: {
     url: string
     token?: string
@@ -323,8 +274,8 @@ function useVoiceWS(opts: {
 
     useEffect(() => {
         if (!enabled) {
-            if (wsRef.current) wsRef.current.close()
-            setConnected(false)
+            if (wsRef.current) wsRef.current.close();
+            setConnected(false);
             return
         }
 
@@ -337,8 +288,8 @@ function useVoiceWS(opts: {
         wsRef.current = ws
 
         ws.onopen = () => {
-            console.log('[WS] open', fullUrl)
-            setConnected(true)
+            console.log('[WS] open', fullUrl);
+            setConnected(true);
             setRetries(0)
         }
         ws.onclose = (ev) => {
@@ -356,15 +307,10 @@ function useVoiceWS(opts: {
                 console.log('[WS] text', ev.data)
                 try {
                     const m = JSON.parse(ev.data)
-
                     if (m.type === 'system') {
-                        // Сузим произвольное m.event до допустимого union
                         const raw = m.event as unknown
                         const evt: 'ready' | 'ended' | 'error' =
-                            raw === 'ready' ? 'ready' :
-                                raw === 'ended' ? 'ended' :
-                                    raw === 'error' ? 'error' : 'error'
-
+                            raw === 'ready' ? 'ready' : raw === 'ended' ? 'ended' : raw === 'error' ? 'error' : 'error'
                         onSystem({type: evt, message: m.message})
                     } else if (m.type === 'stt.partial') {
                         onPartial(m as STTPartial)
@@ -376,46 +322,37 @@ function useVoiceWS(opts: {
                 return
             }
 
-            // --- бинарные/Blob сообщения ---
             let ab: ArrayBuffer | null = null
-            if (ev.data instanceof ArrayBuffer) {
-                ab = ev.data as ArrayBuffer
-            } else if (ev.data instanceof Blob) {
-                ab = await (ev.data as Blob).arrayBuffer()
-            } else {
-                // неожиданный тип
-                return
-            }
+            if (ev.data instanceof ArrayBuffer) ab = ev.data as ArrayBuffer
+            else if (ev.data instanceof Blob) ab = await (ev.data as Blob).arrayBuffer()
+            else return
             if (!ab) return
 
             const {header, payload, headerLen} = parseBinaryEnvelopeSmart(ab)
-
-            // DEBUG: выведем первые 8 сэмплов
             const dv16 = new DataView(payload)
             const first: number[] = []
-            for (let off = 0; off < Math.min(16, payload.byteLength); off += 2) {
-                first.push(dv16.getInt16(off, true))
-            }
+            for (let off = 0; off < Math.min(16, payload.byteLength); off += 2) first.push(dv16.getInt16(off, true))
             console.log('[TTS] first16', first, 'len=', payload.byteLength)
 
             const h = (header || {}) as Partial<TTSEnvelopeHeader & {
-                type?: string; codec?: string; sampleRate?: number; channels?: number
+                type?: string;
+                codec?: string;
+                sampleRate?: number;
+                channels?: number
             }>
             const type = h.type || 'unknown'
             const codec = h.codec || 'unknown'
             const sr = h.sampleRate ?? 24000
             const ch = h.channels ?? 1
 
-            // простая диагностика RMS
             const dv = new DataView(payload)
             let sum = 0
             for (let i = 0; i + 1 < payload.byteLength; i += 2) {
-                const s = dv.getInt16(i, true) / 32768
+                const s = dv.getInt16(i, true) / 32768;
                 sum += s * s
             }
             const rms = Math.sqrt(sum / Math.max(1, payload.byteLength / 2))
             console.log('[TTS] incoming rms=', +rms.toFixed(4), 'sr=', sr, 'ch=', ch)
-
             console.log('[WS] bin', {
                 headerLen,
                 type,
@@ -430,13 +367,11 @@ function useVoiceWS(opts: {
                 onTTSChunk(payload, {type: 'tts.chunk', codec: codec as string, sampleRate: sr, channels: ch})
                 return
             }
-
             if (type === 'unknown' || headerLen === 0) {
                 console.warn('[WS] no/unknown header — fallback: assume PCM16 24k mono')
                 onTTSChunk(payload, {type: 'tts.chunk', codec: 'pcm16', sampleRate: 24000, channels: 1})
                 return
             }
-
             if (type === 'tts.chunk' && !codec.toLowerCase().includes('pcm16')) {
                 console.warn(`[WS] unsupported codec for tts.chunk: ${codec} — please send PCM16. Fallback: beep.`)
                 const testBuf = generateTonePCM16(200, 24000, 660, 1, 0.25)
@@ -445,8 +380,8 @@ function useVoiceWS(opts: {
         }
 
         return () => {
-            closedByUs = true
-            if (retryTimer != null) clearTimeout(retryTimer)
+            closedByUs = true;
+            if (retryTimer != null) clearTimeout(retryTimer);
             ws.close()
         }
     }, [url, token, enabled, retries])
@@ -475,7 +410,6 @@ function useVoiceWS(opts: {
 // =============================================
 // Main component
 // =============================================
-
 const MeetingApp: React.FC = () => {
     const code = useMemo(parseMeetingCodeFromPath, [])
     const [meeting, setMeeting] = useState<MeetingInfo | null>(null)
@@ -483,7 +417,6 @@ const MeetingApp: React.FC = () => {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    // --- HealthCheck URL & logging ---
     const healthUrl = `${backendBase}/health`
     useEffect(() => {
         let cancelled = false
@@ -511,32 +444,32 @@ const MeetingApp: React.FC = () => {
         }
     }, [healthUrl])
 
-    // Separate controls
     const [micEnabled, setMicEnabled] = useState(true)
     const [camEnabled, setCamEnabled] = useState(false)
 
-    // Separate streams
-    const [localStream, setLocalStream] = useState<MediaStream | null>(null)   // audio only
-    const [cameraStream, setCameraStream] = useState<MediaStream | null>(null) // video only
+    const [localStream, setLocalStream] = useState<MediaStream | null>(null)
+    const [cameraStream, setCameraStream] = useState<MediaStream | null>(null)
     const level = useMicLevel(localStream, micEnabled)
+
+    const latestLevelRef = useRef(0)
+    useEffect(() => {
+        latestLevelRef.current = level
+    }, [level])
 
     const [endAt, setEndAt] = useState<number | null>(null)
     const [now, setNow] = useState(Date.now())
     const [subtitles, setSubtitles] = useState<{ partial?: string; finals: string[] }>({finals: []})
     const [showEndConfirm, setShowEndConfirm] = useState(false)
 
-    // Camera permission state
     const [camPerm, setCamPerm] = useState<CamPermission>('prompt')
     const [camRequesting, setCamRequesting] = useState(false)
 
-    // TTS playback
+    const lastTtsAtRef = useRef<number>(0)
     const ttsPlayerRef = useRef<PcmPlayer | null>(null)
     const [avatarSpeaking, setAvatarSpeaking] = useState(false)
 
-    // MediaRecorder (mic)
     const recorderRef = useRef<MediaRecorder | null>(null)
 
-    // ---- Load meeting ----
     useEffect(() => {
         (async () => {
             try {
@@ -549,11 +482,9 @@ const MeetingApp: React.FC = () => {
                 if (ls) {
                     const t = Number(ls)
                     if (!isNaN(t) && t > Date.now()) {
-                        status = 'running'
+                        status = 'running';
                         setEndAt(t)
-                    } else {
-                        localStorage.removeItem(LS_END_AT_KEY)
-                    }
+                    } else localStorage.removeItem(LS_END_AT_KEY)
                 } else if (info.endAt) {
                     const t = new Date(info.endAt).getTime()
                     if (t > Date.now()) {
@@ -571,22 +502,22 @@ const MeetingApp: React.FC = () => {
         })()
     }, [code])
 
-    // ---- Global tick ----
     useEffect(() => {
         const t = setInterval(() => {
             setNow(Date.now())
-            setAvatarSpeaking(ttsPlayerRef.current?.speaking() || false)
+            const playing = ttsPlayerRef.current?.speaking() || false
+            const tail = Date.now() - (lastTtsAtRef.current || 0) < 1000
+            setAvatarSpeaking(playing || tail)
         }, 250)
         return () => clearInterval(t)
     }, [])
 
-    // ---- Watch camera permission (where supported) ----
     useEffect(() => {
         let unmounted = false
 
         async function watchPermission() {
             try {
-                // @ts-ignore Safari may not support this
+                // @ts-ignore
                 const status: PermissionStatus | undefined = await navigator.permissions?.query({name: 'camera' as any})
                 if (!status) {
                     if (!unmounted) setCamPerm('unsupported');
@@ -611,15 +542,13 @@ const MeetingApp: React.FC = () => {
         }
     }, [])
 
-    // ---- AUDIO mic stream (audio only), independent of cam ----
     useEffect(() => {
         if (!micEnabled) {
-            localStream?.getAudioTracks().forEach(t => t.stop())
-            setLocalStream(null)
+            localStream?.getAudioTracks().forEach(t => t.stop());
+            setLocalStream(null);
             return
         }
         if (localStream) return
-
         navigator.mediaDevices.getUserMedia({
             audio: {echoCancellation: true, noiseSuppression: true, autoGainControl: true},
             video: false,
@@ -632,7 +561,6 @@ const MeetingApp: React.FC = () => {
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [micEnabled])
 
-    // ---- CAMERA stream (video only), used in Lobby & Live ----
     useEffect(() => {
         let cancelled = false
 
@@ -660,36 +588,28 @@ const MeetingApp: React.FC = () => {
             }
         }
 
-        if (camEnabled) {
-            openCamera()
-        } else {
-            setCameraStream(prev => {
-                prev?.getVideoTracks().forEach(t => t.stop());
-                return null
-            })
-        }
-
+        if (camEnabled) openCamera()
+        else setCameraStream(prev => {
+            prev?.getVideoTracks().forEach(t => t.stop());
+            return null
+        })
         return () => {
             cancelled = true
         }
     }, [camEnabled])
 
-    // ---- Start meeting ----
     const startMeeting = useCallback(async () => {
         if (!meeting) return
         try {
             setLoading(true)
             const res = await fetchJSON<{ startAt: string; endAt: string; token?: string; interviewId: string }>(
-                `${backendBase}/meetings/${encodeURIComponent(meeting.code)}/start`,
-                {method: 'POST'}
+                `${backendBase}/meetings/${encodeURIComponent(meeting.code)}/start`, {method: 'POST'}
             )
             const end = new Date(res.endAt).getTime()
             setEndAt(end)
             localStorage.setItem(LS_END_AT_KEY, String(end))
             setMeeting((m) => (m ? {...m, token: res.token, interviewId: res.interviewId} : m))
             setUI({page: 'live', status: 'running'})
-
-            // Разрешаем воспроизведение аудио (после пользовательского клика)
             if (!ttsPlayerRef.current) ttsPlayerRef.current = new PcmPlayer()
             await ttsPlayerRef.current.resume()
         } catch {
@@ -699,7 +619,6 @@ const MeetingApp: React.FC = () => {
         }
     }, [meeting])
 
-    // ---- End meeting ----
     const endMeeting = useCallback(async () => {
         if (!meeting) return
         try {
@@ -710,14 +629,12 @@ const MeetingApp: React.FC = () => {
         setUI({page: 'lobby', status: 'ended'})
     }, [meeting])
 
-    // ---- WS URL as a stable hook (FIX: no hooks inside args) ----
     const wsUrl = useMemo(() => {
         const id = meeting?.interviewId || ''
         const wsBase = backendBase.replace(/^http/, 'ws')
         return `${wsBase}/voice?interviewId=${encodeURIComponent(id)}`
     }, [meeting?.interviewId])
 
-    // ---- WebSocket ----
     const startedRef = useRef(false)
     const {connected, sendJSON, sendAudioChunk} = useVoiceWS({
         url: wsUrl,
@@ -742,18 +659,29 @@ const MeetingApp: React.FC = () => {
             if (!ttsPlayerRef.current) ttsPlayerRef.current = new PcmPlayer()
             await ttsPlayerRef.current.resume()
             ttsPlayerRef.current.enqueuePCM16(payload, sr, ch)
+            lastTtsAtRef.current = Date.now()
         },
     })
 
-    // ---- Stream mic via MediaRecorder (audio only) ----
+    const stopStreaming = useCallback(() => {
+        try {
+            if (recorderRef.current && recorderRef.current.state !== 'inactive') recorderRef.current.stop()
+        } catch {
+        }
+        recorderRef.current = null
+    }, [])
+
     const beginStreaming = useCallback(() => {
         if (!localStream) return
+        if (recorderRef.current && recorderRef.current.state === 'recording') return
         try {
             const rec = new MediaRecorder(localStream, {
                 mimeType: 'audio/webm;codecs=opus',
                 audioBitsPerSecond: 32000,
             })
             recorderRef.current = rec
+            const CHUNK_MS = 250
+
             rec.ondataavailable = async (ev) => {
                 if (!ev.data || ev.data.size === 0) return
                 const arrayBuf = await ev.data.arrayBuffer()
@@ -762,48 +690,62 @@ const MeetingApp: React.FC = () => {
                     codec: 'opus/webm',
                     sampleRate: 48000,
                     channels: 1,
+                    rmsHint: Math.max(0, Math.min(1, latestLevelRef.current || 0)), // <= подсказка VAD
+                    durationMs: CHUNK_MS,
                 }
                 sendAudioChunk(arrayBuf, header)
             }
-            rec.start(250)
+
+            rec.onerror = () => {
+                stopStreaming()
+            }
+
+            const [track] = localStream.getAudioTracks()
+            if (track) {
+                track.onended = () => {
+                    stopStreaming()
+                }
+            }
+
+            rec.start(CHUNK_MS)
         } catch {
             setError('Не удалось запустить запись микрофона')
         }
-    }, [localStream, sendAudioChunk])
-
-    const stopStreaming = useCallback(() => {
-        recorderRef.current?.stop()
-        recorderRef.current = null
-    }, [])
+    }, [localStream, sendAudioChunk, stopStreaming])
 
     useEffect(() => {
-        if (ui.page !== 'live') return
-        if (micEnabled) beginStreaming()
-        else stopStreaming()
-        return () => stopStreaming()
-    }, [ui.page, micEnabled]) // eslint-disable-line react-hooks/exhaustive-deps
+        if (ui.page !== 'live') {
+            stopStreaming();
+            return
+        }
+        if (!micEnabled) {
+            stopStreaming();
+            return
+        }
+        if (!localStream) return
+        if (recorderRef.current && recorderRef.current.state === 'recording') return
+        beginStreaming()
+        return () => {
+            stopStreaming()
+        }
+    }, [ui.page, micEnabled, localStream, beginStreaming, stopStreaming])
 
     const remainingMs = useMemo(() => (endAt ? endAt - now : 0), [endAt, now])
-    const split = ui.page === 'live' && camEnabled // split only in Live
+    const split = ui.page === 'live' && camEnabled
 
-    // Тестовый звук (кнопка в лобби)
     const handleTestSound = useCallback(async () => {
         if (!ttsPlayerRef.current) ttsPlayerRef.current = new PcmPlayer()
         await ttsPlayerRef.current.resume()
         const sr = 24000
-        const buf = generateTonePCM16(300, sr, 440, 1, 0.25) // 300мс бип
-        // Только для отладки
+        const buf = generateTonePCM16(300, sr, 440, 1, 0.25)
         console.log('[Audio]', (ttsPlayerRef.current as any)['ctx']?.state)
         ttsPlayerRef.current.enqueuePCM16(buf, sr, 1)
     }, [])
 
-    // -------- UI --------
     if (loading) {
-        return (
-            <div className="page loading">
-                <div className="loader"><Loader2 className="spin"/> Загрузка…</div>
-            </div>
-        )
+        return (<div className="page loading">
+            <div className="loader"><Loader2 className="spin"/> Загрузка…</div>
+        </div>)
     }
     if (error) {
         return (
@@ -823,14 +765,11 @@ const MeetingApp: React.FC = () => {
 
     return (
         <div className="page">
-            {/* Top bar */}
             <header className="topbar">
                 <div className="topbar-inner">
                     {ui.status === 'running' && endAt ? (
-                        <div>
-                            Встреча с кандидатом <strong>{meeting.candidateName}</strong>, оставшееся
-                            время: <strong>{formatRemaining(remainingMs)}</strong>
-                        </div>
+                        <div>Встреча с кандидатом <strong>{meeting.candidateName}</strong>, оставшееся
+                            время: <strong>{formatRemaining(remainingMs)}</strong></div>
                     ) : (
                         <div>Встреча с кандидатом <strong>{meeting.candidateName}</strong></div>
                     )}
@@ -838,7 +777,6 @@ const MeetingApp: React.FC = () => {
                 </div>
             </header>
 
-            {/* Stage */}
             <main className={`stage ${split ? 'split' : ''}`}>
                 {ui.page === 'lobby' && (
                     <Lobby
@@ -874,7 +812,6 @@ const MeetingApp: React.FC = () => {
                 )}
             </main>
 
-            {/* Bottom bar */}
             <footer className="bottombar">
                 <div className="bottombar-inner">
                     <ToggleButton
@@ -945,19 +882,28 @@ const Lobby: React.FC<{
     onCamRetry: () => void
     onTestSound: () => void
 }> = ({
-          greeting, micEnabled, onMicToggle, camEnabled, onCamToggle, level,
-          candidateName, status, cameraStream, camPerm, camRequesting, onCamRetry, onTestSound
+          greeting,
+          micEnabled,
+          onMicToggle,
+          camEnabled,
+          onCamToggle,
+          level,
+          candidateName,
+          status,
+          cameraStream,
+          camPerm,
+          camRequesting,
+          onCamRetry,
+          onTestSound
       }) => {
     const videoRef = useRef<HTMLVideoElement | null>(null)
     useEffect(() => {
         if (!videoRef.current) return
         if (cameraStream) {
-            videoRef.current.srcObject = cameraStream
+            videoRef.current.srcObject = cameraStream;
             videoRef.current.play().catch(() => {
             })
-        } else {
-            ;(videoRef.current as HTMLVideoElement).srcObject = null
-        }
+        } else (videoRef.current as HTMLVideoElement).srcObject = null
     }, [cameraStream])
 
     const camContent = (() => {
@@ -972,9 +918,8 @@ const Lobby: React.FC<{
                 </div>
             )
         }
-        if (camPerm === 'granted' && cameraStream) {
-            return <video ref={videoRef} className="camera-video" muted playsInline/>
-        }
+        if (camPerm === 'granted' && cameraStream) return <video ref={videoRef} className="camera-video" muted
+                                                                 playsInline/>
         return <span>Камера недоступна (проверьте устройство).</span>
     })()
 
@@ -992,7 +937,6 @@ const Lobby: React.FC<{
                 <div className="device-check">
                     <h2>Проверка устройств</h2>
                     <div className="device-row">
-                        {/* МИКРОФОН */}
                         <div className="device">
                             <div className="device-head"><Mic/> Микрофон</div>
                             <div className="vu">
@@ -1007,7 +951,6 @@ const Lobby: React.FC<{
                             </div>
                         </div>
 
-                        {/* КАМЕРА */}
                         <div className="device">
                             <div className="device-head"><Video/> Камера</div>
                             <div className="camera-preview placeholder"
@@ -1043,12 +986,10 @@ const LiveView: React.FC<{
     useEffect(() => {
         if (!videoRef.current) return
         if (cameraStream) {
-            videoRef.current.srcObject = cameraStream
+            videoRef.current.srcObject = cameraStream;
             videoRef.current.play().catch(() => {
             })
-        } else {
-            ;(videoRef.current as HTMLVideoElement).srcObject = null
-        }
+        } else (videoRef.current as HTMLVideoElement).srcObject = null
     }, [cameraStream])
 
     return (
@@ -1063,9 +1004,7 @@ const LiveView: React.FC<{
                     </div>
                 </div>
                 <div className="subs">
-                    {subtitles.finals.slice(-3).map((t, i) => (
-                        <div className="line" key={i}>{t}</div>
-                    ))}
+                    {subtitles.finals.slice(-3).map((t, i) => (<div className="line" key={i}>{t}</div>))}
                     {subtitles.partial && <div className="line partial">{subtitles.partial}</div>}
                 </div>
             </div>
