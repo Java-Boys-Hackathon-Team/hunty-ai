@@ -1,12 +1,12 @@
 <?xml version="1.0" encoding="UTF-8" standalone="no"?>
 <view xmlns="http://jmix.io/schema/flowui/view"
-      title="msg://candidateEntityDetailView.title"
+      title="msg://companyEntityDetailView.title"
       focusComponent="form">
     <data>
-        <instance id="candidateEntityDc"
-                  class="ru.javaboys.huntyhr.entity.CandidateEntity">
+        <instance id="companyEntityDc"
+                  class="ru.javaboys.huntyhr.entity.CompanyEntity">
             <fetchPlan extends="_base"/>
-            <loader id="candidateEntityDl"/>
+            <loader id="companyEntityDl"/>
         </instance>
     </data>
     <facets>
@@ -17,19 +17,12 @@
         <action id="closeAction" type="detail_close"/>
     </actions>
     <layout>
-        <formLayout id="form" dataContainer="candidateEntityDc">
+        <formLayout id="form" dataContainer="companyEntityDc">
             <responsiveSteps>
                 <responsiveStep minWidth="0" columns="1"/>
                 <responsiveStep minWidth="40em" columns="2"/>
             </responsiveSteps>
-            <textField id="nameField" property="name"/>
-            <textField id="surnameField" property="surname"/>
-            <datePicker id="birthDateField" property="birthDate"/>
-            <select id="sexField" property="sex"/>
-            <textField id="emailField" property="email"/>
-            <textField id="phoneField" property="phone"/>
-            <textField id="telegramField" property="telegramUserName"/>
-            <textField id="linkedinField" property="linkedin"/>
+            <textArea id="nameField" height="9.5em" property="name"/>
         </formLayout>
         <hbox id="detailActions">
             <button id="saveAndCloseButton" action="saveAction"/>
