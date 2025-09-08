@@ -28,7 +28,7 @@
             <select id="sexField" property="sex"/>
             <textField id="emailField" property="email"/>
             <textField id="phoneField" property="phone"/>
-            <textField id="telegramField" property="telegram"/>
+            <textField id="telegramField" property="telegramUserName"/>
             <textField id="linkedinField" property="linkedin"/>
         </formLayout>
         <hbox id="detailActions">

@@ -53,7 +53,7 @@
                 <column property="sex"/>
                 <column property="email"/>
                 <column property="phone"/>
-                <column property="telegram"/>
+                <column property="telegramUserName"/>
                 <column property="linkedin"/>
             </columns>
         </dataGrid>

@@ -35,6 +35,15 @@ dependencies {
     implementation 'io.jmix.datatools:jmix-datatools-starter'
     implementation 'io.jmix.datatools:jmix-datatools-flowui-starter'
 
+    // Email
+    implementation 'io.jmix.email:jmix-email-starter'
+    implementation 'io.jmix.email:jmix-email-flowui-starter'
+    implementation 'io.jmix.quartz:jmix-quartz-starter'
+
+    // Telegram Bot
+    implementation 'org.telegram:telegrambots-springboot-longpolling-starter:8.3.0'
+    implementation 'org.telegram:telegrambots-client:8.3.0'
+
     implementation 'org.springframework.boot:spring-boot-starter-web'
 
     implementation 'io.jmix.translations:jmix-translations-ru'

@@ -39,11 +39,22 @@ public class CandidateEntity {
     @Column(name = "PHONE")
     private String phone;
 
-    @Column(name = "TELEGRAM")
-    private String telegram;
-
     @Column(name = "LINKEDIN")
     private String linkedin;
+
+    @Column(name = "TELEGRAM_USER_NAME")
+    private String telegramUserName;
+
+    @Column(name = "TELEGRAM_CHAT_ID")
+    private Long telegramChatId;
+
+    public void setTelegramChatId(Long telegramChatId) {
+        this.telegramChatId = telegramChatId;
+    }
+
+    public Long getTelegramChatId() {
+        return telegramChatId;
+    }
 
     public String getLinkedin() {
         return linkedin;
@@ -53,12 +64,12 @@ public class CandidateEntity {
         this.linkedin = linkedin;
     }
 
-    public String getTelegram() {
-        return telegram;
+    public String getTelegramUserName() {
+        return telegramUserName;
     }
 
-    public void setTelegram(String telegram) {
-        this.telegram = telegram;
+    public void setTelegramUserName(String telegram) {
+        this.telegramUserName = telegram;
     }
 
     public String getPhone() {

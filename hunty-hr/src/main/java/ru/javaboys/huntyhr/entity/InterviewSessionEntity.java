@@ -59,6 +59,17 @@ public class InterviewSessionEntity {
     @OneToOne(fetch = FetchType.LAZY)
     private StorageObjectEntity analytics;
 
+    @Column(name = "NOTIFICATION_SENT")
+    private Boolean notificationSent;
+
+    public Boolean getNotificationSent() {
+        return notificationSent;
+    }
+
+    public void setNotificationSent(Boolean notification_sent) {
+        this.notificationSent = notification_sent;
+    }
+
     public StorageObjectEntity getAnalytics() {
         return analytics;
     }

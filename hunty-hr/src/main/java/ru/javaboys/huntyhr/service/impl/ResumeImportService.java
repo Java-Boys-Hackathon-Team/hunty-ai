@@ -250,7 +250,7 @@ public class ResumeImportService {
         }
         if (found == null && tgNorm != null) {
             found = dm.load(CandidateEntity.class)
-                    .query("select c from CandidateEntity c where lower(c.telegram) = :tg")
+                    .query("select c from CandidateEntity c where lower(c.telegramUserName) = :tg")
                     .parameter("tg", tgNorm)
                     .optional().orElse(null);
         }
@@ -262,7 +262,7 @@ public class ResumeImportService {
             if (found.getSex() == null && sex != null) found.setSex(sex);
             if (isBlank(found.getEmail()) && emailNorm != null) found.setEmail(emailNorm);
             if (isBlank(found.getPhone()) && phoneNorm != null) found.setPhone(phoneNorm);
-            if (isBlank(found.getTelegram()) && tgNorm != null) found.setTelegram(tgNorm);
+            if (isBlank(found.getTelegramUserName()) && tgNorm != null) found.setTelegramUserName(tgNorm);
             if (isBlank(found.getLinkedin()) && nz(dto.getLinkedin()) != null) found.setLinkedin(nz(dto.getLinkedin()));
             return dm.save(found);
         }
@@ -275,7 +275,7 @@ public class ResumeImportService {
         c.setSex(sex);                 // может быть null
         c.setEmail(emailNorm);         // может быть null
         c.setPhone(phoneNorm);         // может быть null
-        c.setTelegram(tgNorm);         // может быть null
+        c.setTelegramUserName(tgNorm);         // может быть null
         c.setLinkedin(nz(dto.getLinkedin()));
         return dm.save(c);
     }
