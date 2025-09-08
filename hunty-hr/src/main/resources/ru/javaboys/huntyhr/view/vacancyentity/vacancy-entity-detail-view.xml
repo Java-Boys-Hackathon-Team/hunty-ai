@@ -97,28 +97,30 @@
 
             <!-- СКОРИНГ -->
             <tab id="tabScoring" label="Скоринг">
-                <formLayout id="formWeights" dataContainer="vacancyEntityDc">
-                    <integerField id="weightTechField" label="Вес: Технические навыки (%)"
-                                  property="weightTech" min="0" max="100" step="5"/>
-                    <integerField id="weightCommField" label="Вес: Коммуникации (%)"
-                                  property="weightComm" min="0" max="100" step="5"/>
-                    <integerField id="weightCasesField" label="Вес: Кейсы (%)"
-                                  property="weightCases" min="0" max="100" step="5"/>
+                <vbox padding="false" spacing="false">
                     <!-- Подсказка: сумма должна быть 100 -->
-                    <label id="weightsHint" text="Сумма всех весов должна быть равна 100%"/>
-                </formLayout>
+                    <vbox css="padding: 20px 0">
+                        <label id="weightsHint" text="Сумма всех весов должна быть равна 100%"/>
+                    </vbox>
+                    <formLayout id="formWeights" dataContainer="vacancyEntityDc">
+                        <integerField id="weightTechField" label="Вес: Технические навыки (%)"
+                                      property="weightTech" min="0" max="100" step="5"/>
+                        <integerField id="weightCommField" label="Вес: Коммуникации (%)"
+                                      property="weightComm" min="0" max="100" step="5"/>
+                        <integerField id="weightCasesField" label="Вес: Кейсы (%)"
+                                      property="weightCases" min="0" max="100" step="5"/>
+                    </formLayout>
+                </vbox>
             </tab>
 
             <!-- КАНДИДАТЫ -->
             <tab id="tabResumes" label="Кандидаты">
-                <vbox spacing="true">
-                    <hbox>
-                        <fileStorageUploadField id="resumeUpload"
-                                                acceptedFileTypes=".pdf,.doc,.docx,.rtf,.odt,.txt,.html,.htm"
-                                                autoupload="true" dropAllowed="true"
-                                                clearButtonVisible="true" label="Загрузить резюме"/>
-                        <button id="refreshAppsBtn" text="Обновить"/>
-                    </hbox>
+                <vbox spacing="true" padding="false">
+                    <button id="refreshAppsBtn" text="Обновить"/>
+                    <fileStorageUploadField id="resumeUpload"
+                                            acceptedFileTypes=".pdf,.doc,.docx,.rtf,.odt,.txt,.html,.htm"
+                                            autoupload="true" dropAllowed="true"
+                                            clearButtonVisible="true" uploadText="Загрузить резюме"/>
 
                     <dataGrid id="applicationsGrid" width="100%" minHeight="20em" dataContainer="applicationsDc" emptyStateText="No customers found">
                         <columns>
@@ -126,7 +128,7 @@
                             <column property="candidate.surname" header="Фамилия"/>
                             <column property="candidate.email" header="Email"/>
                             <column property="status" header="Статус"/>
-                            <column property="totalScore" header="Скоринг"/>
+                            <column property="totalScore" header="Соответствие навыков"/>
                         </columns>
                     </dataGrid>
                 </vbox>
@@ -134,7 +136,7 @@
 
         </tabSheet>
 
-        <hbox id="detailActions">
+        <hbox id="detailActions" padding="true">
             <button id="saveAndCloseButton" action="saveAction"/>
             <button id="closeButton" action="closeAction"/>
         </hbox>
