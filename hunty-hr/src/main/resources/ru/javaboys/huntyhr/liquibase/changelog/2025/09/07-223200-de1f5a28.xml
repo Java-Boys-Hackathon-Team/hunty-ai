@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd"
+        objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+
+    <!-- Drop старую таблицу -->
+    <changeSet id="1" author="hunty-hr">
+        <dropTable cascadeConstraints="true" tableName="EDUCATION_ENTITY"/>
+    </changeSet>
+
+    <!-- Создаём новую -->
+    <changeSet id="2" author="hunty-hr">
+        <createTable tableName="RESUME_EDUCATION_ENTITY">
+            <column name="ID" type="UUID">
+                <constraints primaryKey="true" nullable="false"/>
+            </column>
+            <column name="LEVEL_" type="VARCHAR(255)"/>
+            <column name="PLACE" type="TEXT"/>
+            <column name="START_DATE" type="DATE"/>
+            <column name="END_DATE" type="DATE"/>
+            <column name="RESUME_VERSION_ENTITY_ID" type="UUID"/>
+        </createTable>
+
+        <createIndex indexName="IDX_RESUME_EDUCATION_ENTITY_RESUME_VER"
+                     tableName="RESUME_EDUCATION_ENTITY">
+            <column name="RESUME_VERSION_ENTITY_ID"/>
+        </createIndex>
+
+        <addForeignKeyConstraint baseColumnNames="RESUME_VERSION_ENTITY_ID"
+                                 baseTableName="RESUME_EDUCATION_ENTITY"
+                                 constraintName="FK_RESUME_EDUCATION_ENTITY_ON_RESUME_VERSION_ENTITY"
+                                 referencedColumnNames="ID"
+                                 referencedTableName="RESUME_VERSION_ENTITY"/>
+    </changeSet>
+
+</databaseChangeLog>

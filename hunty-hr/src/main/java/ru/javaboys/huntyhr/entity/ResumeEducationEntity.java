@@ -1,7 +1,5 @@
 package ru.javaboys.huntyhr.entity;
 
-import java.util.UUID;
-
 import io.jmix.core.entity.annotation.JmixGeneratedValue;
 import io.jmix.core.metamodel.annotation.JmixEntity;
 import jakarta.persistence.Column;
@@ -14,12 +12,14 @@ import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
+import java.util.UUID;
+
 @JmixEntity
-@Table(name = "EDUCATION_ENTITY", indexes = {
+@Table(name = "RESUME_EDUCATION_ENTITY", indexes = {
         @Index(name = "IDX_EDUCATION_ENTITY_RESUME_VERSION_ENTITY", columnList = "RESUME_VERSION_ENTITY_ID")
 })
 @Entity
-public class EducationEntity {
+public class ResumeEducationEntity {
     @JmixGeneratedValue
     @Column(name = "ID", nullable = false)
     @Id

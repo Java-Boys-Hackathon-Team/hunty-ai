@@ -31,7 +31,7 @@ public class ResumeVersionEntity {
     private UUID id;
 
     @OneToMany(mappedBy = "resumeVersionEntity")
-    private List<EducationEntity> education;
+    private List<ResumeEducationEntity> education;
 
     @Column(name = "CREATED_AT")
     private LocalDateTime createdAt;
@@ -73,11 +73,11 @@ public class ResumeVersionEntity {
         this.file = file;
     }
 
-    public List<EducationEntity> getEducation() {
+    public List<ResumeEducationEntity> getEducation() {
         return education;
     }
 
-    public void setEducation(List<EducationEntity> education) {
+    public void setEducation(List<ResumeEducationEntity> education) {
         this.education = education;
     }
 

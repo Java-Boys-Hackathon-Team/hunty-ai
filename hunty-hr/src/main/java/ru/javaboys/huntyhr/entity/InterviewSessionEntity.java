@@ -1,8 +1,5 @@
 package ru.javaboys.huntyhr.entity;
 
-import java.time.LocalDateTime;
-import java.util.UUID;
-
 import io.jmix.core.entity.annotation.JmixGeneratedValue;
 import io.jmix.core.metamodel.annotation.JmixEntity;
 import jakarta.persistence.Column;
@@ -11,15 +8,20 @@ import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
 import jakarta.persistence.Index;
 import jakarta.persistence.JoinColumn;
+import jakarta.persistence.Lob;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+
+import java.time.LocalDateTime;
+import java.util.UUID;
 
 @JmixEntity
 @Table(name = "INTERVIEW_SESSION_ENTITY", indexes = {
         @Index(name = "IDX_INTERVIEW_SESSION_ENTITY_APPLICATION", columnList = "APPLICATION_ID"),
         @Index(name = "IDX_INTERVIEW_SESSION_ENTITY_SCENARIO", columnList = "SCENARIO_ID"),
         @Index(name = "IDX_INTERVIEW_SESSION_ENTITY_TRANSCRIPTION", columnList = "TRANSCRIPTION_ID"),
-        @Index(name = "IDX_INTERVIEW_SESSION_ENTITY_ANALYTICS", columnList = "ANALYTICS_ID")
+        @Index(name = "IDX_INTERVIEW_SESSION_ENTITY_ANALYTICS", columnList = "ANALYTICS_ID"),
+        @Index(name = "IDX_INTERVIEW_SESSION_ENTITY_VIDEO_SOURCE", columnList = "VIDEO_SOURCE_ID")
 })
 @Entity
 public class InterviewSessionEntity {
@@ -59,12 +61,28 @@ public class InterviewSessionEntity {
     @OneToOne(fetch = FetchType.LAZY)
     private StorageObjectEntity analytics;
 
-    public StorageObjectEntity getAnalytics() {
-        return analytics;
+    @JoinColumn(name = "VIDEO_SOURCE_ID")
+    @OneToOne(fetch = FetchType.LAZY)
+    private StorageObjectEntity video_source;
+
+    @Column(name = "INTERVIEW_LINK")
+    @Lob
+    private String interviewLink;
+
+    public String getInterviewLink() {
+        return interviewLink;
     }
 
-    public void setAnalytics(StorageObjectEntity analytics) {
-        this.analytics = analytics;
+    public void setInterviewLink(String interviewLink) {
+        this.interviewLink = interviewLink;
+    }
+
+    public StorageObjectEntity getVideo_source() {
+        return video_source;
+    }
+
+    public void setVideo_source(StorageObjectEntity video_source) {
+        this.video_source = video_source;
     }
 
     public StorageObjectEntity getTranscription() {
@@ -73,6 +91,14 @@ public class InterviewSessionEntity {
 
     public void setTranscription(StorageObjectEntity transcription) {
         this.transcription = transcription;
+    }
+
+    public StorageObjectEntity getAnalytics() {
+        return analytics;
+    }
+
+    public void setAnalytics(StorageObjectEntity analytics) {
+        this.analytics = analytics;
     }
 
     public LanguageEnum getLanguage() {
