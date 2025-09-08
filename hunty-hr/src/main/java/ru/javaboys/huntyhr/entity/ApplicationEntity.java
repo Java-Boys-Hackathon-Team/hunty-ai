@@ -1,7 +1,5 @@
 package ru.javaboys.huntyhr.entity;
 
-import java.util.UUID;
-
 import io.jmix.core.entity.annotation.JmixGeneratedValue;
 import io.jmix.core.metamodel.annotation.JmixEntity;
 import jakarta.persistence.Column;
@@ -13,6 +11,8 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+
+import java.util.UUID;
 
 @JmixEntity
 @Table(name = "APPLICATION_ENTITY", indexes = {
@@ -26,6 +26,10 @@ public class ApplicationEntity {
     @Column(name = "ID", nullable = false)
     @Id
     private UUID id;
+
+    @Column(name = "SCREENING_SUMMARY_HTML")
+    @Lob
+    private String screeningSummaryHtml;
 
     @JoinColumn(name = "CANDIDATE_ID")
     @ManyToOne(fetch = FetchType.LAZY)
@@ -60,6 +64,14 @@ public class ApplicationEntity {
     @JoinColumn(name = "STAGE_ID")
     @ManyToOne(fetch = FetchType.LAZY)
     private VacancyPipelineStageEntity stage;
+
+    public String getScreeningSummaryHtml() {
+        return screeningSummaryHtml;
+    }
+
+    public void setScreeningSummaryHtml(String screeningSummaryHtml) {
+        this.screeningSummaryHtml = screeningSummaryHtml;
+    }
 
     public VacancyPipelineStageEntity getStage() {
         return stage;

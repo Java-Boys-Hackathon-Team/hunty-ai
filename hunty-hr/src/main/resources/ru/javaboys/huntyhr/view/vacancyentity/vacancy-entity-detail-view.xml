@@ -16,6 +16,19 @@
             ]]></query>
             </loader>
         </collection>
+
+        <!-- ВЫБРАННАЯ ЗАЯВКА -->
+        <!-- выбранная заявка для блока «Анализ резюме» -->
+        <instance id="selectedAppDc" class="ru.javaboys.huntyhr.entity.ApplicationEntity">
+            <fetchPlan extends="_base">
+                <property name="candidate">
+                    <property name="name"/>
+                    <property name="surname"/>
+                    <property name="email"/>
+                </property>
+            </fetchPlan>
+            <container id="applicationsDc" property="selectedItem"/>
+        </instance>
     </data>
 
     <facets>
@@ -96,8 +109,8 @@
                 </formLayout>
             </tab>
 
-            <!-- РЕЗЮМЕ -->
-            <tab id="tabResumes" label="Резюме">
+            <!-- КАНДИДАТЫ -->
+            <tab id="tabResumes" label="Кандидаты">
                 <vbox spacing="true">
                     <hbox>
                         <fileStorageUploadField id="resumeUpload"
@@ -113,7 +126,6 @@
                             <column property="candidate.surname" header="Фамилия"/>
                             <column property="candidate.email" header="Email"/>
                             <column property="status" header="Статус"/>
-                            <column property="screeningMatchPercent" header="% совпадения"/>
                             <column property="totalScore" header="Скоринг"/>
                         </columns>
                     </dataGrid>
