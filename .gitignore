@@ -248,3 +248,4 @@ Temporary Items
 poetry.lock
 pyproject.toml
 /.env
+/source-code-*.txt

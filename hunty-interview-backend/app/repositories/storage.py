@@ -3,8 +3,8 @@ from datetime import datetime
 
 from sqlalchemy import text
 
-from app.config import settings
-from app.db import engine
+from ..config import settings
+from ..db import engine
 
 logger = logging.getLogger("storage_repo")
 
