@@ -9,7 +9,6 @@ from pathlib import Path
 from typing import Any, Dict, Optional, List
 
 from fastapi import Body, FastAPI, HTTPException, WebSocket, WebSocketDisconnect
-from fastapi.responses import Response
 from fastapi.staticfiles import StaticFiles
 from starlette import status
 from starlette.middleware.cors import CORSMiddleware
@@ -35,6 +34,47 @@ VERSION_TAG = "voice-mock-v3-vad"
 
 # Пул потоков для блокирующих операций
 executor = ThreadPoolExecutor(max_workers=4)
+
+# --------- Vosk STT globals ----------
+try:
+    from vosk import Model as VoskModel, KaldiRecognizer, SetLogLevel as VoskSetLogLevel
+except Exception:
+    VoskModel = None  # type: ignore
+    KaldiRecognizer = None  # type: ignore
+
+
+    def VoskSetLogLevel(_: int):
+        pass
+
+VOSK_SAMPLE_RATE = 16000
+_VOSK_MODEL_CACHE = None
+
+
+def get_vosk_model():
+    global _VOSK_MODEL_CACHE
+    if _VOSK_MODEL_CACHE is None:
+        # silence Vosk logs
+        try:
+            VoskSetLogLevel(0)
+        except Exception:
+            pass
+        # resolve model path
+        model_path_env = os.getenv("VOSK_MODEL_PATH")
+        candidates = [
+            model_path_env,
+            "/app/models/vosk/ru",
+            "./app/models/vosk/ru",
+            str(Path(__file__).parent / "app" / "models" / "vosk" / "ru"),
+        ]
+        model_path = next((p for p in candidates if p and os.path.isdir(p)), None)
+        if not model_path:
+            raise RuntimeError("Vosk model path not found. Set VOSK_MODEL_PATH or add model to app/models/vosk/ru")
+        if VoskModel is None:
+            raise RuntimeError("vosk library not available. Ensure it is installed.")
+        logger.info(f"Loading Vosk model from {model_path} ...")
+        _VOSK_MODEL_CACHE = VoskModel(model_path)
+        logger.info("Vosk model loaded")
+    return _VOSK_MODEL_CACHE
 
 
 @asynccontextmanager
@@ -183,365 +223,263 @@ async def end_meeting(code: str):
     return {"ok": True}
 
 
-# --------- утилиты: упаковка и генерация тона ----------
-async def _pack_envelope(header: Dict[str, Any], payload_bytes: bytes) -> bytes:
-    # Упаковываем 256-байтный JSON заголовок + бинарный payload
-    header_json = json.dumps(header, ensure_ascii=False)
-    header_bytes = header_json.encode("utf-8")
-    padded = bytearray(256)
-    padded[: min(len(header_bytes), 256)] = header_bytes[:256]
-    return bytes(padded) + payload_bytes
-
-
-# короткая тишина PCM16
-def _silence_pcm16(ms: int, sample_rate: int = 24000, channels: int = 1) -> bytes:
-    samples = int(ms * sample_rate / 1000) * channels
-    return b"\x00\x00" * samples
-
-
-# генерируем весёлую «мелодию» из коротких бипов с паузами
-def make_beep_melody(ms_total: int = 1000, sample_rate: int = 24000, channels: int = 1) -> list[tuple[bytes, int]]:
-    """
-    Возвращает список пар (payload_bytes, duration_ms).
-    Внутри немного случайности по частоте, длительности и паузам.
-    """
-    import random
-
-    # набор приятных частот в районе приветственного бипа
-    base_notes = [660, 704, 784, 880, 988]
-    pieces: list[tuple[bytes, int]] = []
-    elapsed = 0
-
-    while elapsed < ms_total:
-        dur = random.choice([90, 110, 130, 150, 170])  # длительность бипа
-        freq = random.choice(base_notes)  # частота
-        vol = random.uniform(0.35, 0.6)  # громкость
-        payload = tone_pcm16_square(freq, dur, sample_rate, channels, vol)
-        pieces.append((payload, dur))
-        elapsed += dur
-
-        if elapsed >= ms_total:
-            break
-
-        gap = random.choice([40, 60, 80])  # пауза между бипами
-        pieces.append((_silence_pcm16(gap, sample_rate, channels), gap))
-        elapsed += gap
-
-    return pieces
-
-
-def tone_pcm16_square(
-        freq_hz: float,
-        ms: int,
-        sample_rate: int = 24000,
-        channels: int = 1,
-        volume: float = 0.3,
-) -> bytes:
-    # Простой квадратный тон PCM16 little-endian
-    frames = int(ms * sample_rate / 1000)
-    pcm = bytearray(frames * channels * 2)
-    amp = int(32767 * max(0.0, min(1.0, volume)))
-    period = max(1, int(sample_rate / max(1.0, freq_hz)))
-    for i in range(frames):
-        s = amp if (i % period) < (period // 2) else -amp
-        lo = s & 0xFF
-        hi = (s >> 8) & 0xFF
-        for ch in range(channels):
-            off = (i * channels + ch) * 2
-            pcm[off] = lo
-            pcm[off + 1] = hi
-    return bytes(pcm)
-
-
-async def _send_beeps(websocket: WebSocket, count: int, *, freq_hz: float = 880.0, ms_each: int = 120,
-                      gap_ms: int = 120):
-    # Отправляем count коротких бипов подряд
-    sr, ch = 24000, 1
-    header = {"type": "tts.chunk", "codec": "pcm16", "sampleRate": sr, "channels": ch}
-    for i in range(max(1, count)):
-        payload = tone_pcm16_square(freq_hz, ms_each, sr, ch, 1.0)
-        frame = await _pack_envelope(header, payload)
-        await websocket.send_bytes(frame)
-        # Небольшая пауза между бипами
-        await asyncio.sleep(gap_ms / 1000)
-
-
-# --------- состояние VAD на подключение ----------
-class VadState:
-    def __init__(self, interview_id: str):
-        self.interview_id = interview_id
-        self.in_voice = False
-        self.silence_ms = 0
-        self.buffer = bytearray()
-        self.total_ms = 0
-        self.segment_counter = 0
-        # Каталог для сохранения сегментов речи
-        self.base_dir = Path(f"/tmp/voice_segments/{interview_id}")
-        self.base_dir.mkdir(parents=True, exist_ok=True)
-
-    def start_segment(self):
-        # Начало нового речевого сегмента
-        self.in_voice = True
-        self.silence_ms = 0
-        self.buffer.clear()
-        self.total_ms = 0
-        logger.info("[VAD] start segment for %s", self.interview_id)
-
-    def push_chunk(self, payload: bytes, chunk_ms: int):
-        # Добавляем очередной чанк в буфер
-        self.buffer.extend(payload)
-        self.total_ms += max(0, chunk_ms)
-
-    def inc_silence(self, chunk_ms: int):
-        # Увеличиваем счётчик тишины
-        self.silence_ms += max(0, chunk_ms)
-
-    def reset_after_finalize(self):
-        # Сбрасываем состояние после финализации сегмента
-        self.in_voice = False
-        self.silence_ms = 0
-        self.buffer.clear()
-        self.total_ms = 0
-
-    def save_segment(self, codec: str) -> Path:
-        # Сохраняем накопленный сегмент на диск
-        self.segment_counter += 1
-        ts = datetime.utcnow().strftime("%Y%m%dT%H%M%S_%f")[:-3]
-        ext = "webm" if codec == "opus/webm" else "pcm16"
-        path = self.base_dir / f"seg_{ts}_{self.segment_counter:04d}.{ext}"
-        with open(path, "wb") as f:
-            f.write(self.buffer)
-        return path
-
-
-# --------- простая имитация TTS-фразы (для приветствия) ----------
-async def _send_tts_phrase(websocket: WebSocket, text: str, *, ms_total: int = 1200) -> None:
-    # Отправляем несколько чанков PCM16 с разной частотой - псевдо-речь
-    sample_rate = 24000
-    channels = 1
-    header = {"type": "tts.chunk", "codec": "pcm16", "sampleRate": sample_rate, "channels": channels}
-    try:
-        await websocket.send_text(
-            json.dumps({"type": "stt.partial", "text": text, "fromMs": 0, "toMs": 500}, ensure_ascii=False))
-    except Exception:
-        return
-
-    elapsed = 0
-    chunk_ms = 240
-    step = 0
-    try:
-        while elapsed < ms_total:
-            freq = [220.0, 440.0, 330.0, 280.0][step % 4]
-            payload = tone_pcm16_square(freq, chunk_ms, sample_rate, channels, 0.30)
-            frame = await _pack_envelope(header, payload)
-            await websocket.send_bytes(frame)
-            await asyncio.sleep(0.26)
-            elapsed += chunk_ms
-            step += 1
-    finally:
-        try:
-            await websocket.send_text(
-                json.dumps({"type": "stt.final", "text": text, "fromMs": 0, "toMs": ms_total}, ensure_ascii=False))
-        except Exception:
-            pass
-
-
-# отправка «весёлых бипов» как TTS-ответа
-async def _send_fun_beeps(websocket: WebSocket, caption: str, *, ms_total: int = 1000) -> None:
-    """
-    Мокаем аудио-ответ набором коротких бипов с паузами.
-    Также шлём partial/final для субтитров, чтобы фронт рисовал текст.
-    """
-    sample_rate = 24000
-    channels = 1
-    header = {"type": "tts.chunk", "codec": "pcm16", "sampleRate": sample_rate, "channels": channels}
-
-    # субтитры
-    try:
-        await websocket.send_text(
-            json.dumps({"type": "stt.partial", "text": caption, "fromMs": 0, "toMs": 500}, ensure_ascii=False))
-    except Exception:
-        return
-
-    # шлём пачку бипов
-    melody = make_beep_melody(ms_total, sample_rate, channels)
-    for payload, dur in melody:
-        frame = await _pack_envelope(header, payload)
-        await websocket.send_bytes(frame)
-        # небольшая задержка с запасом, чтобы не «зализывать» границы
-        await asyncio.sleep((dur + 20) / 1000)
-
-    # финальный субтитр
-    try:
-        await websocket.send_text(
-            json.dumps({"type": "stt.final", "text": caption, "fromMs": 0, "toMs": ms_total}, ensure_ascii=False))
-    except Exception:
-        pass
-
-
 # --------- WebSocket: голосовой шлюз ----------
 @app.websocket("/voice")
 async def voice_gateway(websocket: WebSocket):
     await websocket.accept()
+    # Send readiness event for UI to start streaming
     try:
-        qp = websocket.query_params
-        interview_id = qp.get("interviewId") or "unknown"
-        token = qp.get("token")
+        await websocket.send_json({"type": "system", "event": "ready"})
+    except Exception:
+        return
 
-        # Диагностика для фронта
-        await websocket.send_text(
-            json.dumps({"type": "diag", "file": os.path.abspath(__file__), "version": VERSION_TAG}, ensure_ascii=False))
+    # Prepare Vosk recognizer
+    try:
+        model = get_vosk_model()
+        if KaldiRecognizer is None:
+            raise RuntimeError("vosk library not available")
+        rec = KaldiRecognizer(model, VOSK_SAMPLE_RATE)
+        # enable words if available (won't break if missing)
+        try:
+            rec.SetWords(True)  # type: ignore[attr-defined]
+        except Exception:
+            pass
+    except Exception as e:
+        logger.exception("Failed to init Vosk recognizer")
+        try:
+            await websocket.send_json({"type": "system", "event": "error", "message": str(e)})
+        finally:
+            await websocket.close(code=1011)
+        return
 
-        if not interview_id or interview_id == "unknown":
-            await websocket.send_text(json.dumps({"type": "system", "event": "error", "message": "Bad params"}))
-            await websocket.close(code=1008)
-            return
+    # State
+    pcm_queue: asyncio.Queue[bytes | None] = asyncio.Queue(maxsize=16)
+    started = False
+    ffmpeg = None
+    ffmpeg_reader_task: Optional[asyncio.Task] = None
+    recognizer_task: Optional[asyncio.Task] = None
 
-        # Сигнал готовности
-        await websocket.send_text(json.dumps({"type": "system", "event": "ready", "server": "mock-v3"}))
+    bytes_processed = 0
+    last_partial: str = ""
+    last_final_to_ms = 0
 
-        # Приветственный бип сразу после коннекта
-        await _send_beeps(websocket, 1)
+    def bytes_to_ms(n_bytes: int) -> int:
+        # s16le mono @ 16kHz => 32000 bytes/sec
+        return int((n_bytes / (2 * 1 * VOSK_SAMPLE_RATE)) * 1000)
 
-        # VAD-параметры мока
-        vad = VadState(interview_id)
-        VAD_THRESH = 0.02  # порог для rmsHint с фронта
-        VAD_TAIL_MS = 2000  # завершаем сегмент после 2 секунд тишины
-
-        # Внутреннее состояние беседы
-        started = False
-        tts_busy = False
-        current_tts: asyncio.Task | None = None
-
-        async def start_tts(text: str, ms: int = 1200, fun: bool = True):
-            """
-            Обёртка над отправкой TTS. Если fun=True - шлём «весёлые бипы»,
-            иначе - стандартную псевдо-речь.
-            """
-            nonlocal tts_busy, current_tts
-            if tts_busy:
-                return
-            tts_busy = True
-
-            async def run():
-                try:
-                    if fun:
-                        await _send_fun_beeps(websocket, caption=text, ms_total=ms)
-                    else:
-                        await _send_tts_phrase(websocket, text, ms_total=ms)
-                finally:
-                    # короткий пост-пауза, чтобы фронт успевал погасить анимацию
-                    await asyncio.sleep(0.05)
-
-            current_tts = asyncio.create_task(run())
-
-            def _done(_):  # noqa
-                nonlocal tts_busy
-                tts_busy = False
-
-            current_tts.add_done_callback(_done)
-
-        # Главный цикл обработки входящих WS-сообщений
-        while True:
-            try:
-                message = await websocket.receive()
-            except WebSocketDisconnect:
-                break
-
-            # Бинарные сообщения - это аудио чанки от клиента
-            if message.get("bytes") is not None:
-                raw: bytes = message["bytes"]  # 256 байт заголовок + полезная нагрузка
-                if len(raw) < 256:
+    async def recognizer_loop():
+        nonlocal bytes_processed, last_partial, last_final_to_ms
+        loop = asyncio.get_event_loop()
+        try:
+            while True:
+                chunk = await pcm_queue.get()
+                if chunk is None:
+                    break
+                if not chunk:
                     continue
-                head = raw[:256].rstrip(b"\x00")
-                payload = raw[256:]
-                try:
-                    h = json.loads(head.decode("utf-8") or "{}")
-                except Exception:
-                    h = {}
-
-                codec = h.get("codec") or "unknown"
-                chunk_ms = int(h.get("durationMs") or 250)
-                rms_hint = float(h.get("rmsHint") or 0.0)
-
-                # Простейшая логика VAD
-                if rms_hint > VAD_THRESH:
-                    # Речь - добавляем в буфер
-                    if not vad.in_voice:
-                        vad.start_segment()
-                    vad.push_chunk(payload, chunk_ms)
-                    vad.silence_ms = 0
-                else:
-                    # Тишина - если были в речи, считаем хвост
-                    if vad.in_voice:
-                        vad.inc_silence(chunk_ms)
-                        if vad.silence_ms >= VAD_TAIL_MS:
-                            # Финализация сегмента
-                            dur_ms = vad.total_ms
-                            # Пока уберу сохранение сегмента
-                            # path = vad.save_segment(codec)
-                            # logger.info("[VAD] finalize: saved=%s dur_ms=%d bytes=%d codec=%s",
-                            #             path, dur_ms, len(vad.buffer), codec)
-                            await start_tts("Сегмент речи получен.", ms=900, fun=True)
-
-                            vad.reset_after_finalize()
-                    # Если не в речи - ничего не делаем
-
-                continue
-
-            # Текстовые сообщения - служебные команды
-            text = message.get("text")
-            if not text:
-                continue
-
-            try:
-                data = json.loads(text)
-            except json.JSONDecodeError:
-                continue
-
-            if data.get("type") == "control":
-                action = data.get("action")
-                if action == "start":
-                    started = True
-                    # Приветственная псевдо-фраза
-                    await start_tts("Здравствуйте! Расскажите немного о себе.", ms=1200, fun=True)
-                elif action == "stop":
-                    # Принудительное завершение
-                    if current_tts and not current_tts.done():
-                        current_tts.cancel()
+                bytes_processed += len(chunk)
+                # Run blocking AcceptWaveform off-thread
+                accepted = await loop.run_in_executor(executor, rec.AcceptWaveform, chunk)
+                if accepted:
+                    try:
+                        res_raw = rec.Result()
+                        data = json.loads(res_raw or '{}')
+                        text = (data.get('text') or '').strip()
+                    except Exception:
+                        text = ''
+                    current_ms = bytes_to_ms(bytes_processed)
+                    if text:
+                        logger.info(f"STT final: {text}")
                         try:
-                            await current_tts
+                            await websocket.send_json({
+                                "type": "stt.final",
+                                "text": text,
+                                "fromMs": last_final_to_ms,
+                                "toMs": current_ms,
+                            })
                         except Exception:
                             pass
-                    tts_busy = False
-                    await websocket.send_text(
-                        json.dumps({"type": "system", "event": "ended", "message": "Interview ended (mock)."}))
-                elif action == "ping":
-                    await websocket.send_text(json.dumps({"type": "system", "event": "ready", "server": "mock-v3"}))
+                        last_partial = ""
+                        last_final_to_ms = current_ms
+                else:
+                    try:
+                        p_raw = rec.PartialResult()
+                        pdata = json.loads(p_raw or '{}')
+                        ptxt = (pdata.get('partial') or '').strip()
+                    except Exception:
+                        ptxt = ''
+                    if ptxt and ptxt != last_partial:
+                        # send partial for UI subtitles
+                        try:
+                            await websocket.send_json({
+                                "type": "stt.partial",
+                                "text": ptxt,
+                                "fromMs": last_final_to_ms,
+                                "toMs": bytes_to_ms(bytes_processed),
+                            })
+                        except Exception:
+                            pass
+                        last_partial = ptxt
+        finally:
+            # flush final
+            try:
+                f_raw = rec.FinalResult()
+                fdata = json.loads(f_raw or '{}')
+                ftxt = (fdata.get('text') or '').strip()
+                if ftxt:
+                    cur_ms = bytes_to_ms(bytes_processed)
+                    logger.info(f"STT final (flush): {ftxt}")
+                    try:
+                        await websocket.send_json({
+                            "type": "stt.final",
+                            "text": ftxt,
+                            "fromMs": last_final_to_ms,
+                            "toMs": cur_ms,
+                        })
+                    except Exception:
+                        pass
+            except Exception:
+                pass
 
+    async def ensure_ffmpeg():
+        nonlocal ffmpeg, ffmpeg_reader_task
+        if ffmpeg is not None:
+            return ffmpeg
+        ffmpeg = await asyncio.create_subprocess_exec(
+            'ffmpeg',
+            '-hide_banner', '-loglevel', 'error', '-fflags', '+discardcorrupt',
+            '-f', 'webm', '-i', 'pipe:0',
+            '-vn', '-ac', '1', '-ar', str(VOSK_SAMPLE_RATE),
+            '-f', 's16le', 'pipe:1',
+            stdin=asyncio.subprocess.PIPE,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+        )
+
+        async def read_stdout():
+            try:
+                while True:
+                    if ffmpeg.stdout is None:
+                        break
+                    data = await ffmpeg.stdout.read(4096)
+                    if not data:
+                        break
+                    await pcm_queue.put(data)
+            except Exception:
+                pass
+            finally:
+                await pcm_queue.put(None)
+
+        ffmpeg_reader_task = asyncio.create_task(read_stdout())
+        return ffmpeg
+
+    async def close_transcoder():
+        nonlocal ffmpeg
+        try:
+            if ffmpeg and ffmpeg.stdin:
+                try:
+                    ffmpeg.stdin.close()
+                except Exception:
+                    pass
+            if ffmpeg:
+                try:
+                    await ffmpeg.wait()
+                except Exception:
+                    pass
+        finally:
+            ffmpeg = None
+
+    # Start recognizer consumer
+    recognizer_task = asyncio.create_task(recognizer_loop())
+
+    try:
+        while True:
+            data = await websocket.receive()
+            if 'bytes' in data and data['bytes']:
+                b = data['bytes']
+                if len(b) < 256:
+                    continue
+                header_raw = b[:256]
+                payload = b[256:]
+                try:
+                    header_str = header_raw.split(b'\x00', 1)[0].decode('utf-8', 'ignore')
+                    hdr = json.loads(header_str or '{}')
+                except Exception:
+                    hdr = {}
+                msg_type = (hdr.get('type') or '').lower()
+                codec = (hdr.get('codec') or '').lower()
+                if msg_type != 'audio.chunk':
+                    continue
+                if 'opus' in codec or 'webm' in codec:
+                    await ensure_ffmpeg()
+                    if ffmpeg and ffmpeg.stdin:
+                        try:
+                            ffmpeg.stdin.write(payload)
+                            await ffmpeg.stdin.drain()
+                        except Exception:
+                            break
+                elif 'pcm16' in codec:
+                    # feed raw PCM16 directly
+                    try:
+                        await pcm_queue.put(payload)
+                    except Exception:
+                        break
+                else:
+                    # unsupported codec
+                    try:
+                        await websocket.send_json(
+                            {"type": "system", "event": "error", "message": f"Unsupported codec: {codec}"})
+                    except Exception:
+                        pass
+            elif 'text' in data and data['text']:
+                try:
+                    m = json.loads(data['text'])
+                except Exception:
+                    continue
+                if m.get('type') == 'control':
+                    action = m.get('action')
+                    if action == 'start':
+                        started = True
+                    elif action == 'stop':
+                        # graceful shutdown
+                        break
+                    elif action == 'ping':
+                        try:
+                            await websocket.send_json({"type": "system", "event": "ready"})
+                        except Exception:
+                            pass
     except WebSocketDisconnect:
-        logger.info("Voice WS: client disconnected")
+        pass
     except Exception:
-        logger.exception("Voice WS: error")
+        logger.exception("Error in voice_gateway loop")
+    finally:
+        # Close ffmpeg and end queues
         try:
-            await websocket.send_text(
-                json.dumps(
-                    {"type": "system", "event": "error", "message": "Internal error"}
-                )
-            )
+            await close_transcoder()
         except Exception:
             pass
         try:
-            await websocket.close(code=1011)
+            await pcm_queue.put(None)
         except Exception:
             pass
-
-
-# --------- простая отладочная ручка: выдаём 250 мс PCM16 ----------
-@app.get("/debug/pcm16")
-async def debug_pcm16():
-    data = tone_pcm16_square(440.0, 250, 24000, 1, 1.0)
-    return Response(content=data, media_type="application/octet-stream")
+        if ffmpeg_reader_task:
+            try:
+                await ffmpeg_reader_task
+            except Exception:
+                pass
+        if recognizer_task:
+            try:
+                await recognizer_task
+            except Exception:
+                pass
+        try:
+            await websocket.send_json({"type": "system", "event": "ended"})
+        except Exception:
+            pass
+        try:
+            await websocket.close()
+        except Exception:
+            pass
 
 
 # --------- прочие REST ручки ----------
