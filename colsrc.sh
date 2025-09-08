@@ -83,6 +83,7 @@ EXCLUDE_DIRS_DEFAULT=(
   .env
   .envs
   pkg/mod
+  generated
 )
 
 # Argument parsing (named only)
@@ -97,12 +98,23 @@ while [[ $# -gt 0 ]]; do
       [[ $# -lt 2 ]] && { echo "Error: --root requires a value" >&2; exit 2; }
       ROOT_DIR="$2"; shift 2 ;;
     --patterns)
-      # Allow multiple --patterns occurrences, each can be a single token.
-      [[ $# -lt 2 ]] && { echo "Error: --patterns requires a value" >&2; exit 2; }
-      PATTERNS+=("$2"); shift 2 ;;
+      # Allow grouped values after --patterns until the next named option.
+      shift
+      added=0
+      while [[ $# -gt 0 && "$1" != -h && "$1" != --help && "$1" != --* ]]; do
+        PATTERNS+=("$1"); shift; added=$((added+1))
+      done
+      [[ $added -eq 0 ]] && { echo "Error: --patterns requires at least one value" >&2; exit 2; }
+      ;;
     --exclude-dirs)
-      [[ $# -lt 2 ]] && { echo "Error: --exclude-dirs requires a value" >&2; exit 2; }
-      EXCLUDE_DIRS_USER+=("$2"); shift 2 ;;
+      # Allow grouped values after --exclude-dirs until the next named option.
+      shift
+      added=0
+      while [[ $# -gt 0 && "$1" != -h && "$1" != --help && "$1" != --* ]]; do
+        EXCLUDE_DIRS_USER+=("$1"); shift; added=$((added+1))
+      done
+      [[ $added -eq 0 ]] && { echo "Error: --exclude-dirs requires at least one value" >&2; exit 2; }
+      ;;
     --output-dir)
       [[ $# -lt 2 ]] && { echo "Error: --output-dir requires a value" >&2; exit 2; }
       OUTPUT_DIR="$2"; shift 2 ;;

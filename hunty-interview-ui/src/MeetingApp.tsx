@@ -1,7 +1,3 @@
-// =============================================
-// FILE: src/MeetingApp.tsx
-// =============================================
-
 import React, {useCallback, useEffect, useMemo, useRef, useState} from 'react'
 import './custom.css'
 import {AlertTriangle, Loader2, Mic, MicOff, Play, RefreshCw, Square, Video, VideoOff} from 'lucide-react'
