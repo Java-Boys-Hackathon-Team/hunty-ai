@@ -15,7 +15,7 @@ import ru.javaboys.huntyhr.entity.ApplicationEntity;
 import ru.javaboys.huntyhr.entity.ApplicationStatusEnum;
 import ru.javaboys.huntyhr.entity.CandidateEntity;
 import ru.javaboys.huntyhr.entity.CompanyEntity;
-import ru.javaboys.huntyhr.entity.EducationEntity;
+import ru.javaboys.huntyhr.entity.ResumeEducationEntity;
 import ru.javaboys.huntyhr.entity.EducationLevelEnum;
 import ru.javaboys.huntyhr.entity.ResumeExperienceEntity;
 import ru.javaboys.huntyhr.entity.ResumeSkillEntity;
@@ -134,7 +134,7 @@ public class ResumeImportService {
                 String level = nz(ed.getLevel());
                 if (place == null && level == null) continue;
 
-                EducationEntity e = dm.create(EducationEntity.class);
+                ResumeEducationEntity e = dm.create(ResumeEducationEntity.class);
                 e.setResumeVersionEntity(version);
                 e.setPlace(place);  // строки могут быть длинные — у тебя @Lob ок
                 e.setLevel(EducationLevelEnum.fromId(level));
