@@ -2,6 +2,7 @@ package ru.javaboys.huntyhr;
 
 import javax.sql.DataSource;
 
+import com.vaadin.flow.component.dependency.JsModule;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
@@ -24,6 +25,7 @@ import com.vaadin.flow.theme.Theme;
 @Theme(value = "hunty-hr")
 @EnableScheduling
 @SpringBootApplication
+@JsModule("./src/theme/color-scheme-switching-support.js")
 public class HuntyHrApplication implements AppShellConfigurator {
 
     @Autowired
