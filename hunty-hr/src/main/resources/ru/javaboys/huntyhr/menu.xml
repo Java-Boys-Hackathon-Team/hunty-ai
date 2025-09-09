@@ -5,7 +5,9 @@
 <!--        <item view="User.list" title="msg://ru.javaboys.huntyhr.view.user/UserListView.title"/>-->
         <item view="VacancyEntity.list"
               title="msg://ru.javaboys.huntyhr.view.vacancyentity/vacancyEntityListView.title"/>
-<!--        <item view="ApplicationEntity.list" title="msg://ru.javaboys.huntyhr.view.applicationentity/applicationEntityListView.title"/>-->
+    <item view="InterviewSessionEntity.list"
+          title="msg://ru.javaboys.huntyhr.view.interviewsessionentity/interviewSessionEntityListView.title"/>
+    <!--        <item view="ApplicationEntity.list" title="msg://ru.javaboys.huntyhr.view.applicationentity/applicationEntityListView.title"/>-->
 <!--        <item view="CandidateEntity.list" title="msg://ru.javaboys.huntyhr.view.candidateentity/candidateEntityListView.title"/>-->
 <!--        <item view="CompanyEntity.list" title="msg://ru.javaboys.huntyhr.view.companyentity/companyEntityListView.title"/>-->
 <!--        <item view="QuestionTemplateEntity.list" title="msg://ru.javaboys.huntyhr.view.questiontemplateentity/questionTemplateEntityListView.title"/>-->

@@ -1,0 +1,72 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="Сессии интервью"
+      focusComponent="interviewSessionEntitiesDataGrid">
+
+    <data>
+        <collection id="interviewSessionEntitiesDc"
+                    class="ru.javaboys.huntyhr.entity.InterviewSessionEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="interviewSessionEntitiesDl" readOnly="true">
+                <query><![CDATA[
+                    select e from InterviewSessionEntity e order by e.scheduledStartAt desc
+                ]]></query>
+            </loader>
+        </collection>
+    </data>
+
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <genericFilter component="genericFilter"/>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+    </facets>
+
+    <actions>
+        <action id="selectAction" type="lookup_select"/>
+        <action id="discardAction" type="lookup_discard"/>
+    </actions>
+
+    <layout>
+        <genericFilter id="genericFilter" dataLoader="interviewSessionEntitiesDl">
+            <properties include=".*"/>
+        </genericFilter>
+
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="createButton" action="interviewSessionEntitiesDataGrid.createAction" text="Создать"/>
+            <button id="editButton"   action="interviewSessionEntitiesDataGrid.editAction"   text="Изменить"/>
+            <button id="removeButton" action="interviewSessionEntitiesDataGrid.removeAction" text="Удалить"/>
+            <simplePagination id="pagination" dataLoader="interviewSessionEntitiesDl"/>
+        </hbox>
+
+        <dataGrid id="interviewSessionEntitiesDataGrid"
+                  width="100%"
+                  minHeight="22em"
+                  dataContainer="interviewSessionEntitiesDc"
+                  columnReorderingAllowed="true">
+            <actions>
+                <action id="createAction" type="list_create"/>
+                <action id="editAction"   type="list_edit"/>
+                <action id="removeAction" type="list_remove"/>
+            </actions>
+
+            <columns resizable="true">
+                <column property="state"             header="Статус"/>
+                <column property="scheduledStartAt"  header="Запланировано на"/>
+                <column property="startedAt"         header="Начато"/>
+                <column property="completedAt"       header="Завершено"/>
+                <column property="notificationSent"  header="Уведомление отправлено"/>
+                <column key="linkCol"   header="Ссылка"/>
+                <column key="videoCol"  header="Видео"/>
+                <column key="transCol"  header="Транскрипт"/>
+                <column key="analCol"   header="Аналитика"/>
+            </columns>
+        </dataGrid>
+
+        <hbox id="lookupActions" visible="false">
+            <button id="selectButton"  action="selectAction"  text="Выбрать"/>
+            <button id="discardButton" action="discardAction" text="Отмена"/>
+        </hbox>
+    </layout>
+</view>
