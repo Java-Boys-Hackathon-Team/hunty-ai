@@ -204,10 +204,10 @@ public class VacancyEntityDetailView extends StandardDetailView<VacancyEntity> {
 
         applicationsGrid.addComponentColumn(app -> {
             Button btn = uiComponents.create(Button.class);
-            btn.setText("Интервью");
+            btn.setText("Пригласить");
             btn.addClickListener(e -> openInterviewDialog(app));
             return btn;
-        }).setHeader("Интервью");
+        }).setHeader("Пригласить на интервью");
     }
 
     private boolean notBlank(String s) {

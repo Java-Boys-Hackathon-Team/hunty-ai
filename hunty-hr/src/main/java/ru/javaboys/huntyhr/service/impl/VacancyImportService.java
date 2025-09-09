@@ -52,6 +52,7 @@ public class VacancyImportService {
                   "weightCases": number (0..100)
                 }
                 Требования:
+                - нужно сгененрировать краткое описание вакансии
                 - weightTech + weightComm + weightCases = 100
                 - Язык результата: русский (кроме кодовых значений seniority/status).
                 - Если информации нет, оставляй поле пустым и распределяй веса по умолчанию: 60 / 25 / 15.
