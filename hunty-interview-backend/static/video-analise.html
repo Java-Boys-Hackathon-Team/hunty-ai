@@ -11,6 +11,7 @@
         #startButton, #stopButton { padding: 10px 20px; margin-right: 10px; }
         #status { margin-top: 20px; font-weight: bold; }
         #sessionId { margin-top: 10px; padding: 5px; }
+        #sessionIdInput { padding: 5px; width: 300px; margin-left: 10px; }
     </style>
 </head>
 <body>
@@ -25,7 +26,12 @@
         <button id="stopButton" disabled>Stop Recording</button>
     </div>
     
-    <div id="sessionId">Session ID: <span id="sessionIdValue"></span></div>
+    <div>
+        <label for="sessionIdInput">Session ID:</label>
+        <input id="sessionIdInput" type="text" placeholder="Leave empty for auto" />
+    </div>
+    
+    <div id="sessionId">Current Session: <span id="sessionIdValue"></span></div>
     <div id="status">Status: Ready</div>
     
     <script>
@@ -34,6 +40,7 @@
         const stopButton = document.getElementById('stopButton');
         const statusDiv = document.getElementById('status');
         const sessionIdSpan = document.getElementById('sessionIdValue');
+        const sessionIdInput = document.getElementById('sessionIdInput');
         
         let mediaRecorder;
         let socket;
@@ -48,7 +55,13 @@
                 return v.toString(16);
             });
         }
-        
+
+        // Получаем sessionId из input (если пусто — автогенерация)
+        function getSessionId() {
+            const inputValue = sessionIdInput.value.trim();
+            return inputValue ? inputValue : generateUUIDv4();
+        }
+
         // Initialize WebSocket connection
         function initWebSocket() {
             const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -99,9 +112,8 @@
                 return;
             }
             
-            // Generate UUID if not already set
             if (!sessionId) {
-                sessionId = generateUUIDv4();
+                sessionId = getSessionId();
                 sessionIdSpan.textContent = sessionId;
                 initWebSocket();
             }
@@ -169,11 +181,15 @@
             stopButton.addEventListener('click', stopRecording);
         }
 
+        // Автозаполняем input UUID при загрузке страницы
+        window.addEventListener('load', () => {
+            sessionIdInput.value = generateUUIDv4();
+            init();
+        });
+
         window.addEventListener('beforeunload', function() {
             finishRecording();
         });
-
-        window.addEventListener('load', init);
     </script>
 </body>
 </html>
