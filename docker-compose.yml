@@ -56,11 +56,12 @@ services:
       - S3_ACCESS_KEY_ID=minioadmin
       - S3_SECRET_ACCESS_KEY=minioadmin
       - S3_BUCKET=files
-      # ==== Vosk & Piper (пути внутри контейнера) ====
       - VOSK_MODEL_PATH=/app/app/models/vosk/ru
       - PIPER_MODEL_PATH=/app/app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx
       - PIPER_CONFIG_PATH=/app/app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx.json
       - PIPER_SPEAKER=0
+    volumes:
+      - ./hunty-interview-backend/app/models:/app/app/models:ro
     ports:
       - "8084:8000"
 
