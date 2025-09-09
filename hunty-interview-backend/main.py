@@ -76,6 +76,106 @@ def get_vosk_model():
         logger.info("Vosk model loaded")
     return _VOSK_MODEL_CACHE
 
+def _make_envelope(header: dict, payload: bytes) -> bytes:
+    """
+    Упаковывает бинарный фрейм: 256 байт JSON-заголовка (utf-8, подбит нулями) + payload.
+    Совместимо с фронтовым parseBinaryEnvelopeSmart().
+    """
+    try:
+        h = json.dumps(header, ensure_ascii=False).encode("utf-8")
+    except Exception:
+        h = b"{}"
+    if len(h) > 256:
+        h = h[:256]
+    padded = h.ljust(256, b"\x00")
+    return padded + payload
+
+async def _piper_stream_tts(
+    websocket: WebSocket,
+    text: str,
+    *,
+    model_file: str | None = None,
+    config_file: str | None = None,
+    sample_rate: int = 24000,
+    channels: int = 1,
+    chunk_ms: int = 240,
+) -> None:
+    """
+    Стримовое TTS через pip-версию Piper: `python -m piper`.
+    Отправляет tts.chunk (PCM16) в бинарных конвертах (256-байтный JSON заголовок + payload).
+    Стартует ТОЛЬКО после финального STT (длинные фразы поддерживаются естественно — по паузе).
+    """
+    import sys
+
+    if not text.strip():
+        return
+
+    # Берём пути из аргументов или из окружения
+    model_file = model_file or os.getenv("PIPER_MODEL_PATH") or os.getenv("PIPER_MODEL_FILE")
+    config_file = config_file or os.getenv("PIPER_CONFIG_PATH") or os.getenv("PIPER_CONFIG_FILE")
+
+    # Модель обязательна; конфиг желателен, но можно и без него
+    if not model_file or not os.path.isfile(model_file):
+        try:
+            await websocket.send_json({"type": "system", "event": "error", "message": "Piper model_file not set/found"})
+        except Exception:
+            pass
+        return
+
+    args = [
+        sys.executable, "-m", "piper",
+        "-m", model_file,  # эквивалент --model-file в текущих версиях pip-CLI
+        "--output_raw", "--sample_rate", str(sample_rate),
+    ]
+    if config_file and os.path.isfile(config_file):
+        args += ["-c", config_file]
+
+    # Заголовок для фронта (он уже умеет это играть)
+    header = {
+        "type": "tts.chunk",
+        "codec": "pcm16",
+        "sampleRate": sample_rate,
+        "channels": channels,
+    }
+    bytes_per_ms = (sample_rate * channels * 2) // 1000
+    chunk_bytes = max(bytes_per_ms * chunk_ms, 1)
+
+    proc = await asyncio.create_subprocess_exec(
+        *args,
+        stdin=asyncio.subprocess.PIPE,
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE,
+    )
+
+    assert proc.stdin is not None and proc.stdout is not None
+    # Подаём текст и закрываем stdin — это триггерит синтез
+    proc.stdin.write((text.strip() + "\n").encode("utf-8"))
+    await proc.stdin.drain()
+    proc.stdin.close()
+
+    buf = b""
+    try:
+        while True:
+            chunk = await proc.stdout.read(4096)
+            if not chunk:
+                break
+            buf += chunk
+            while len(buf) >= chunk_bytes:
+                payload = buf[:chunk_bytes]
+                buf = buf[chunk_bytes:]
+                # 256-байтный заголовок + payload
+                h = json.dumps(header, ensure_ascii=False).encode("utf-8")[:256].ljust(256, b"\x00")
+                await websocket.send_bytes(h + payload)
+
+        if buf:
+            h = json.dumps(header, ensure_ascii=False).encode("utf-8")[:256].ljust(256, b"\x00")
+            await websocket.send_bytes(h + buf)
+
+    finally:
+        try:
+            await proc.wait()
+        except Exception:
+            pass
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -268,8 +368,19 @@ async def voice_gateway(websocket: WebSocket):
         return int((n_bytes / (2 * 1 * VOSK_SAMPLE_RATE)) * 1000)
 
     async def recognizer_loop():
+        """
+        Читает PCM16 из pcm_queue, гоняет через Vosk/KaldiRecognizer,
+        присылает stt.partial/stt.final в websocket.
+        На каждом финале запускает Piper TTS (эхо) и стримит чанки на фронт.
+        """
         nonlocal bytes_processed, last_partial, last_final_to_ms
+
         loop = asyncio.get_event_loop()
+
+        def bytes_to_ms(n_bytes: int) -> int:
+            # s16le mono @ 16kHz => 32000 bytes/sec
+            return int((n_bytes / (2 * 1 * VOSK_SAMPLE_RATE)) * 1000)
+
         try:
             while True:
                 chunk = await pcm_queue.get()
@@ -277,19 +388,25 @@ async def voice_gateway(websocket: WebSocket):
                     break
                 if not chunk:
                     continue
+
                 bytes_processed += len(chunk)
-                # Run blocking AcceptWaveform off-thread
+
+                # Блокирующий KaldiRecognizer.AcceptWaveform гоняем в threadpool
                 accepted = await loop.run_in_executor(executor, rec.AcceptWaveform, chunk)
                 if accepted:
+                    # Финальное распознавание
                     try:
                         res_raw = rec.Result()
-                        data = json.loads(res_raw or '{}')
-                        text = (data.get('text') or '').strip()
+                        data = json.loads(res_raw or "{}")
+                        text = (data.get("text") or "").strip()
                     except Exception:
-                        text = ''
+                        text = ""
+
                     current_ms = bytes_to_ms(bytes_processed)
+
                     if text:
                         logger.info(f"STT final: {text}")
+                        # 1) отдаём финальный субтитр
                         try:
                             await websocket.send_json({
                                 "type": "stt.final",
@@ -299,17 +416,40 @@ async def voice_gateway(websocket: WebSocket):
                             })
                         except Exception:
                             pass
+
+                        last_partial = ""
+                        last_final_to_ms = current_ms
+
+                        # 2) запускаем Piper TTS-эхо (важно: после final)
+                        #    модель берём из env PIPER_MODEL_PATH/PIPER_MODEL
+                        try:
+                            await _piper_stream_tts(
+                                websocket,
+                                text,
+                                model_file=os.getenv("PIPER_MODEL_PATH") or os.getenv(
+                                    "PIPER_MODEL_FILE") or "./app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx",
+                                config_file=os.getenv("PIPER_CONFIG_PATH") or os.getenv(
+                                    "PIPER_CONFIG_FILE") or "./app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx.json",
+                                sample_rate=24000,
+                                channels=1,
+                                chunk_ms=240,
+                            )
+                        except Exception:
+                            logger.exception("TTS (piper) failed")
+                    else:
+                        # Финал без текста — просто фиксируем таймлайн
                         last_partial = ""
                         last_final_to_ms = current_ms
                 else:
+                    # паршиалы
                     try:
                         p_raw = rec.PartialResult()
-                        pdata = json.loads(p_raw or '{}')
-                        ptxt = (pdata.get('partial') or '').strip()
+                        pdata = json.loads(p_raw or "{}")
+                        ptxt = (pdata.get("partial") or "").strip()
                     except Exception:
-                        ptxt = ''
+                        ptxt = ""
+
                     if ptxt and ptxt != last_partial:
-                        # send partial for UI subtitles
                         try:
                             await websocket.send_json({
                                 "type": "stt.partial",
@@ -321,11 +461,11 @@ async def voice_gateway(websocket: WebSocket):
                             pass
                         last_partial = ptxt
         finally:
-            # flush final
+            # Финальный дренаж распознавателя
             try:
                 f_raw = rec.FinalResult()
-                fdata = json.loads(f_raw or '{}')
-                ftxt = (fdata.get('text') or '').strip()
+                fdata = json.loads(f_raw or "{}")
+                ftxt = (fdata.get("text") or "").strip()
                 if ftxt:
                     cur_ms = bytes_to_ms(bytes_processed)
                     logger.info(f"STT final (flush): {ftxt}")
@@ -338,6 +478,21 @@ async def voice_gateway(websocket: WebSocket):
                         })
                     except Exception:
                         pass
+                    # эхо для хвоста (опционально; если не нужно — закомментируй)
+                    try:
+                        await _piper_stream_tts(
+                            websocket,
+                            text,
+                            model_file=os.getenv("PIPER_MODEL_PATH") or os.getenv(
+                                "PIPER_MODEL_FILE") or "./app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx",
+                            config_file=os.getenv("PIPER_CONFIG_PATH") or os.getenv(
+                                "PIPER_CONFIG_FILE") or "./app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx.json",
+                            sample_rate=24000,
+                            channels=1,
+                            chunk_ms=240,
+                        )
+                    except Exception:
+                        logger.exception("TTS (piper, flush) failed")
             except Exception:
                 pass
 
