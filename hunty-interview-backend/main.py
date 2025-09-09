@@ -131,8 +131,8 @@ async def _piper_stream_tts(
 
     args = [
         sys.executable, "-m", "piper",
-        "-m", model_file,  # эквивалент --model-file в текущих версиях pip-CLI
-        "--output_raw", "--sample_rate", str(sample_rate),
+        "-m", model_file,
+        "--output_raw", text
     ]
     if config_file and os.path.isfile(config_file):
         args += ["-c", config_file]
@@ -432,20 +432,8 @@ async def voice_gateway(websocket: WebSocket):
                         last_partial = ""
                         last_final_to_ms = current_ms
 
-                        # 2) запускаем Piper TTS-эхо (важно: после final)
-                        #    модель берём из env PIPER_MODEL_PATH/PIPER_MODEL
                         try:
-                            await _piper_stream_tts(
-                                websocket,
-                                text,
-                                model_file=os.getenv("PIPER_MODEL_PATH") or os.getenv(
-                                    "PIPER_MODEL_FILE") or "./app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx",
-                                config_file=os.getenv("PIPER_CONFIG_PATH") or os.getenv(
-                                    "PIPER_CONFIG_FILE") or "./app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx.json",
-                                sample_rate=24000,
-                                channels=1,
-                                chunk_ms=240,
-                            )
+                            await _piper_stream_tts(websocket, text)
                         except Exception:
                             logger.exception("TTS (piper) failed")
                     else:
@@ -492,17 +480,7 @@ async def voice_gateway(websocket: WebSocket):
                         pass
                     # эхо для хвоста (опционально; если не нужно — закомментируй)
                     try:
-                        await _piper_stream_tts(
-                            websocket,
-                            ftxt,
-                            model_file=os.getenv("PIPER_MODEL_PATH") or os.getenv(
-                                "PIPER_MODEL_FILE") or "./app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx",
-                            config_file=os.getenv("PIPER_CONFIG_PATH") or os.getenv(
-                                "PIPER_CONFIG_FILE") or "./app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx.json",
-                            sample_rate=24000,
-                            channels=1,
-                            chunk_ms=240,
-                        )
+                        await _piper_stream_tts(websocket, ftxt)
                     except Exception:
                         logger.exception("TTS (piper, flush) failed")
             except Exception:
