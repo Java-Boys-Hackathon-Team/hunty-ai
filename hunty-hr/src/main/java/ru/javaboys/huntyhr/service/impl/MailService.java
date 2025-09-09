@@ -30,7 +30,7 @@ public class MailService {
                 StringUtils.joinWith(" ", candidate.getSurname(), candidate.getName()).trim(),
                 scheduledStartAt,
                 vacancy.getTitle(),
-                ""// todo build link
+                interviewSession.getInterviewLink()
         );
         sendMessageToCandidate(candidate.getEmail(), "Приглашение на интервью", body);
     }
