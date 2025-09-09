@@ -95,8 +95,8 @@
                 </formLayout>
             </tab>
 
-            <!-- СКОРИНГ -->
-            <tab id="tabScoring" label="Скоринг">
+            <!-- Соответствие навыков -->
+            <tab id="tabScoring" label="Соответствие навыков">
                 <vbox padding="false" spacing="false">
                     <!-- Подсказка: сумма должна быть 100 -->
                     <vbox css="padding: 20px 0">
