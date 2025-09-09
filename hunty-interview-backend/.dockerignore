@@ -1,0 +1,16 @@
+# Exclude large model files from image build
+app/models/
+
+# Typical Python ignores to keep context small
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.build/
+.env
+.venv/
+venv/
+.env.local
+.idea/
+.vscode/
+*.log

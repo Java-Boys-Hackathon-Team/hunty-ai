@@ -1,8 +1,7 @@
 import uuid
 from datetime import datetime
 from sqlalchemy import text
-from app.db import async_session_maker
-
+from ..db import async_session_maker
 
 async def save_video_and_json_refs(session_id: str):
     """
