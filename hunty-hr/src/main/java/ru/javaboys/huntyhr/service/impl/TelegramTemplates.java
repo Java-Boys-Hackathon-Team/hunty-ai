@@ -15,22 +15,22 @@ public class TelegramTemplates {
             <b>💼 Роль:</b> %s
             <b>⏳ Ориентировочная длительность:</b> 60 минут
             
-            <b>🔗 Ссылка на встречу:</b> <a href="%s">Встреча</a>
+            <b>🔗 Ссылка на встречу:</b> <a href="%s">%s</a>
             
             <b>📝 План встречи:</b>
-            • Короткое знакомство и вопросы о вашем опыте \s
-            • Технический блок / кейс (при необходимости) \s
+            • Короткое знакомство и вопросы о вашем опыте
+            • Технический блок / кейс (при необходимости)
             
             <b>✅ Что подготовить:</b>
-            • Доступ к камере и микрофону \s
-            • Тихое место и стабильный интернет \s
+            • Доступ к камере и микрофону
+            • Тихое место и стабильный интернет
             """;
 
     public static String getSchedule(String candidateName, LocalDateTime scheduledAt, String position, String meetingLink) {
         String date = scheduledAt.toLocalDate().format(DateTimeFormatter.ofPattern("d MMMM uuuu", new Locale("ru")));
         String time = scheduledAt.toLocalTime().format(DateTimeFormatter.ofPattern("HH:mm", new Locale("ru")));
 
-        return SCHEDULE.formatted(candidateName, date, time, position, meetingLink);
+        return SCHEDULE.formatted(candidateName, date, time, position, meetingLink, meetingLink);
     }
 
     private static final String INTERVIEW_NOTIFICATION = """
@@ -39,6 +39,7 @@ public class TelegramTemplates {
             
             <b>🔗 Присоединиться:</b> <a href="%s">Встреча</a>
             """;
+
     public static String getInterviewNotification(String candidateName, long interviewAfterMin, String meetingLink) {
         return INTERVIEW_NOTIFICATION.formatted(interviewAfterMin, candidateName, meetingLink);
     }

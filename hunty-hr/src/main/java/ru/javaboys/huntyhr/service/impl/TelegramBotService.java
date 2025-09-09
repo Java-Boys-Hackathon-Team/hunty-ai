@@ -39,7 +39,7 @@ public class TelegramBotService {
                 StringUtils.joinWith(" ", candidate.getSurname(), candidate.getName()).trim(),
                 scheduledStartAt,
                 vacancy.getTitle(),
-                ""// todo build link
+                interviewSession.getInterviewLink()
         );
         sendMessageToCandidate(msg, candidate.getTelegramChatId());
     }
