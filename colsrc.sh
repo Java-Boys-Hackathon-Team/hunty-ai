@@ -180,9 +180,10 @@ for gi in "${GITIGNORE_FILES[@]:-}"; do
       [[ -z "$entry" ]] && continue
       # If entry is an absolute path in gitignore (rare), make it relative by stripping leading slashes
       entry="${entry#/}"
-      # Use only the first path segment as a directory name to prune broadly
-      topseg="${entry%%/*}"
-      [[ -n "$topseg" ]] && GITIGNORE_DIRS+=("$topseg")
+      # Only accept single-segment names (no slash) to avoid over-pruning like turning "app/models" into "app"
+      [[ "$entry" == *"/"* ]] && continue
+      # Add the entry as-is; it should be a simple directory name
+      GITIGNORE_DIRS+=("$entry")
     fi
   done < "$gi"
   # Also consider sibling .git/info/exclude? not required here
@@ -230,14 +231,10 @@ INCLUDE_EXPR=()
 first=1
 for p in "${NORMALIZED_PATTERNS[@]}"; do
   if [[ $first -eq 1 ]]; then
-    INCLUDE_EXPR+=( -name "$p" )
+    INCLUDE_EXPR+=( \( -name "$p" -o -iname "$p" \) )
     first=0
   else
-    INCLUDE_EXPR+=( -o -name "$p" )
-  fi
-  # Also support exact basename if pattern looks like unqualified name without wildcards
-  if [[ "$p" != *"*"* && "$p" != *"?"* && "$p" != *"["* ]]; then
-    INCLUDE_EXPR+=( -o -iname "$p" )
+    INCLUDE_EXPR+=( -o \( -name "$p" -o -iname "$p" \) )
   fi
 done
 
@@ -258,7 +255,7 @@ while IFS= read -r f; do
   FILES+=("$f")
 done < <( \
   find "$ROOT_DIR" \
-    \( "${PRUNE_EXPR[@]}" \) -prune -o \
+    \( -type d -a \( "${PRUNE_EXPR[@]}" \) \) -prune -o \
     \( -type f \( "${INCLUDE_EXPR[@]}" \) \) -print 2>/dev/null \
 )
 
