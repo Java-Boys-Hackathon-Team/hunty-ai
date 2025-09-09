@@ -112,6 +112,11 @@ async def _piper_stream_tts(
     if not text.strip():
         return
 
+    try:
+        logger.info(f"TTS speak: {text[:200]}")
+    except Exception:
+        pass
+
     # Берём пути из аргументов или из окружения
     model_file = model_file or os.getenv("PIPER_MODEL_PATH") or os.getenv("PIPER_MODEL_FILE")
     config_file = config_file or os.getenv("PIPER_CONFIG_PATH") or os.getenv("PIPER_CONFIG_FILE")
@@ -485,7 +490,7 @@ async def voice_gateway(websocket: WebSocket):
                     try:
                         await _piper_stream_tts(
                             websocket,
-                            text,
+                            ftxt,
                             model_file=os.getenv("PIPER_MODEL_PATH") or os.getenv(
                                 "PIPER_MODEL_FILE") or "./app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx",
                             config_file=os.getenv("PIPER_CONFIG_PATH") or os.getenv(
