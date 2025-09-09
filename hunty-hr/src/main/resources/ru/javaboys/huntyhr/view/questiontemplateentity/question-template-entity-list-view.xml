@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      xmlns:c="http://jmix.io/schema/flowui/jpql-condition"
+      title="msg://questionTemplateEntityListView.title"
+      focusComponent="questionTemplateEntitiesDataGrid">
+    <data>
+        <collection id="questionTemplateEntitiesDc"
+                    class="ru.javaboys.huntyhr.entity.QuestionTemplateEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="questionTemplateEntitiesDl" readOnly="true">
+                <query>
+                    <![CDATA[select e from QuestionTemplateEntity e]]>
+                </query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <genericFilter component="genericFilter"/>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+    </facets>
+    <actions>
+        <action id="selectAction" type="lookup_select"/>
+        <action id="discardAction" type="lookup_discard"/>
+    </actions>
+    <layout>
+        <genericFilter id="genericFilter"
+                       dataLoader="questionTemplateEntitiesDl">
+            <properties include=".*"/>
+        </genericFilter>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="createButton" action="questionTemplateEntitiesDataGrid.createAction"/>
+            <button id="editButton" action="questionTemplateEntitiesDataGrid.editAction"/>
+            <button id="removeButton" action="questionTemplateEntitiesDataGrid.removeAction"/>
+            <simplePagination id="pagination" dataLoader="questionTemplateEntitiesDl"/>
+        </hbox>
+        <dataGrid id="questionTemplateEntitiesDataGrid"
+                  width="100%"
+                  minHeight="20em"
+                  dataContainer="questionTemplateEntitiesDc"
+                  columnReorderingAllowed="true">
+            <actions>
+                <action id="createAction" type="list_create"/>
+                <action id="editAction" type="list_edit"/>
+                <action id="removeAction" type="list_remove"/>
+            </actions>
+            <columns resizable="true">
+                <column property="type"/>
+                <column property="idx"/>
+                <column property="difficulty"/>
+                <column property="text"/>
+            </columns>
+        </dataGrid>
+        <hbox id="lookupActions" visible="false">
+            <button id="selectButton" action="selectAction"/>
+            <button id="discardButton" action="discardAction"/>
+        </hbox>
+    </layout>
+</view>

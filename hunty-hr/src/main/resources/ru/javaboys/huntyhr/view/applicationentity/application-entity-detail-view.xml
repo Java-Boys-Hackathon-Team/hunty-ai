@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://applicationEntityDetailView.title"
+      focusComponent="form">
+    <data>
+        <instance id="applicationEntityDc"
+                  class="ru.javaboys.huntyhr.entity.ApplicationEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="applicationEntityDl"/>
+        </instance>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <actions>
+        <action id="saveAction" type="detail_saveClose"/>
+        <action id="closeAction" type="detail_close"/>
+    </actions>
+    <layout>
+        <formLayout id="form" dataContainer="applicationEntityDc">
+            <responsiveSteps>
+                <responsiveStep minWidth="0" columns="1"/>
+                <responsiveStep minWidth="40em" columns="2"/>
+            </responsiveSteps>
+            <select id="statusField" property="status"/>
+            <textArea id="screeningSummaryField" height="9.5em" property="screeningSummary"/>
+            <textField id="screeningMatchPercentField" property="screeningMatchPercent"/>
+            <textField id="techScoreField" property="techScore"/>
+            <textField id="commScoreField" property="commScore"/>
+            <textField id="casesScoreField" property="casesScore"/>
+            <textField id="totalScoreField" property="totalScore"/>
+        </formLayout>
+        <hbox id="detailActions">
+            <button id="saveAndCloseButton" action="saveAction"/>
+            <button id="closeButton" action="closeAction"/>
+        </hbox>
+    </layout>
+</view>

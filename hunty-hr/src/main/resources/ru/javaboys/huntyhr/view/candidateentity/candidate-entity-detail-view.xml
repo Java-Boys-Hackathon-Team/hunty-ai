@@ -2,35 +2,152 @@
 <view xmlns="http://jmix.io/schema/flowui/view"
       title="msg://candidateEntityDetailView.title"
       focusComponent="form">
+
     <data>
+        <!-- сам кандидат -->
         <instance id="candidateEntityDc"
                   class="ru.javaboys.huntyhr.entity.CandidateEntity">
             <fetchPlan extends="_base"/>
             <loader id="candidateEntityDl"/>
         </instance>
+
+        <!-- актуальная (последняя) версия резюме кандидата -->
+        <instance id="latestResumeDc"
+                  class="ru.javaboys.huntyhr.entity.ResumeVersionEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="latestResumeDl" maxResults="1">
+                <query><![CDATA[
+                    select r from ResumeVersionEntity r
+                    where r.candidate = :container_candidateEntityDc
+                    order by r.createdAt desc
+                ]]></query>
+            </loader>
+        </instance>
+
+        <!-- опыт по актуальной версии -->
+        <collection id="experiencesDc"
+                    class="ru.javaboys.huntyhr.entity.ResumeExperienceEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="experiencesDl">
+                <query><![CDATA[
+                    select e from ResumeExperienceEntity e
+                    where e.resumeVersionEntity = :container_latestResumeDc
+                    order by coalesce(e.startAt, current_date) desc
+                ]]></query>
+            </loader>
+        </collection>
+
+        <!-- образование по актуальной версии -->
+        <collection id="educationDc"
+                    class="ru.javaboys.huntyhr.entity.ResumeEducationEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="educationDl">
+                <query><![CDATA[
+                    select ed from ResumeEducationEntity ed
+                    where ed.resumeVersionEntity = :container_latestResumeDc
+                ]]></query>
+            </loader>
+        </collection>
+
+        <!-- навыки по актуальной версии -->
+        <collection id="skillsDc"
+                    class="ru.javaboys.huntyhr.entity.ResumeSkillEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="skillsDl">
+                <query><![CDATA[
+                    select s from ResumeSkillEntity s
+                    where s.resumeVersionEntity = :container_latestResumeDc
+                    order by s.name asc
+                ]]></query>
+            </loader>
+        </collection>
     </data>
+
     <facets>
+        <!-- автозагрузка: при загрузке кандидата подтянется latestResume, затем зависимые коллекции -->
         <dataLoadCoordinator auto="true"/>
     </facets>
+
     <actions>
         <action id="saveAction" type="detail_saveClose"/>
         <action id="closeAction" type="detail_close"/>
     </actions>
+
     <layout>
-        <formLayout id="form" dataContainer="candidateEntityDc">
-            <responsiveSteps>
-                <responsiveStep minWidth="0" columns="1"/>
-                <responsiveStep minWidth="40em" columns="2"/>
-            </responsiveSteps>
-            <textField id="nameField" property="name"/>
-            <textField id="surnameField" property="surname"/>
-            <datePicker id="birthDateField" property="birthDate"/>
-            <select id="sexField" property="sex"/>
-            <textField id="emailField" property="email"/>
-            <textField id="phoneField" property="phone"/>
-            <textField id="telegramField" property="telegram"/>
-            <textField id="linkedinField" property="linkedin"/>
-        </formLayout>
+        <tabSheet id="tabs" width="100%">
+
+            <!-- ОСНОВНОЕ -->
+            <tab id="tabMain" label="Основное">
+                <formLayout id="form" dataContainer="candidateEntityDc">
+                    <responsiveSteps>
+                        <responsiveStep minWidth="0" columns="1"/>
+                        <responsiveStep minWidth="40em" columns="2"/>
+                    </responsiveSteps>
+
+                    <textField id="nameField" property="name" label="Имя"/>
+                    <textField id="surnameField" property="surname" label="Фамилия"/>
+                    <datePicker id="birthDateField" property="birthDate" label="Дата рождения"/>
+                    <select id="sexField" property="sex" label="Пол"/>
+
+                    <textField id="emailField" property="email" label="Email"/>
+                    <textField id="phoneField" property="phone" label="Телефон"/>
+                    <textField id="telegramField" property="telegramUserName" label="Telegram"/>
+                    <textField id="linkedinField" property="linkedin" label="LinkedIn"/>
+                </formLayout>
+            </tab>
+
+            <!-- РЕЗЮМЕ -->
+            <tab id="tabResume" label="Резюме">
+                <vbox spacing="true" width="100%">
+                    <!-- краткая шапка актуальной версии -->
+                    <formLayout dataContainer="latestResumeDc">
+                        <responsiveSteps>
+                            <responsiveStep minWidth="0" columns="1"/>
+                            <responsiveStep minWidth="40em" columns="3"/>
+                        </responsiveSteps>
+
+                        <dateTimePicker id="rvCreatedAt" property="createdAt" label="Создано" readOnly="true"/>
+                        <textField id="rvSourceType" property="sourceType" label="Источник" readOnly="true"/>
+                        <textField id="rvSourceUrl" property="sourceUrl" label="Ссылка источника" readOnly="true"/>
+
+                        <!-- кнопка "Скачать" для файла резюме -->
+                        <hbox>
+                            <button id="downloadResumeBtn" text="Скачать резюме"/>
+                            <button id="showAllVersionsBtn" text="Все версии"/>
+                        </hbox>
+                    </formLayout>
+
+                    <!-- ОПЫТ -->
+                    <label text="Опыт работы" classNames="text-h5"/>
+                    <dataGrid id="experiencesGrid" dataContainer="experiencesDc" width="100%" minHeight="12em">
+                        <columns>
+                            <column property="company.name" header="Компания"/>
+                            <column property="startAt" header="Начало"/>
+                            <column property="endDate" header="Окончание"/>
+                        </columns>
+                    </dataGrid>
+
+                    <!-- ОБРАЗОВАНИЕ -->
+                    <label text="Образование" classNames="text-h5" />
+                    <dataGrid id="educationGrid" dataContainer="educationDc" width="100%" minHeight="10em">
+                        <columns>
+                            <column property="place" header="Учебное заведение"/>
+                            <column property="level" header="Уровень"/>
+                        </columns>
+                    </dataGrid>
+
+                    <!-- НАВЫКИ -->
+                    <label text="Навыки" classNames="text-h5"/>
+                    <dataGrid id="skillsGrid" dataContainer="skillsDc" width="100%" minHeight="8em">
+                        <columns>
+                            <column property="name" header="Навык"/>
+                        </columns>
+                    </dataGrid>
+                </vbox>
+            </tab>
+
+        </tabSheet>
+
         <hbox id="detailActions">
             <button id="saveAndCloseButton" action="saveAction"/>
             <button id="closeButton" action="closeAction"/>

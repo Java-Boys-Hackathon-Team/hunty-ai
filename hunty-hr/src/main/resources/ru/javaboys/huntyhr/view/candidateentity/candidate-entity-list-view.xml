@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      xmlns:c="http://jmix.io/schema/flowui/jpql-condition"
+      title="msg://candidateEntityListView.title"
+      focusComponent="candidateEntitiesDataGrid">
+    <data>
+        <collection id="candidateEntitiesDc"
+                    class="ru.javaboys.huntyhr.entity.CandidateEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="candidateEntitiesDl" readOnly="true">
+                <query>
+                    <![CDATA[select e from CandidateEntity e]]>
+                </query>
+            </loader>
+        </collection>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+        <urlQueryParameters>
+            <genericFilter component="genericFilter"/>
+            <pagination component="pagination"/>
+        </urlQueryParameters>
+    </facets>
+    <actions>
+        <action id="selectAction" type="lookup_select"/>
+        <action id="discardAction" type="lookup_discard"/>
+    </actions>
+    <layout>
+        <genericFilter id="genericFilter"
+                       dataLoader="candidateEntitiesDl">
+            <properties include=".*"/>
+        </genericFilter>
+        <hbox id="buttonsPanel" classNames="buttons-panel">
+            <button id="createButton" action="candidateEntitiesDataGrid.createAction"/>
+            <button id="editButton" action="candidateEntitiesDataGrid.editAction"/>
+            <button id="removeButton" action="candidateEntitiesDataGrid.removeAction"/>
+            <simplePagination id="pagination" dataLoader="candidateEntitiesDl"/>
+        </hbox>
+        <dataGrid id="candidateEntitiesDataGrid"
+                  width="100%"
+                  minHeight="20em"
+                  dataContainer="candidateEntitiesDc"
+                  columnReorderingAllowed="true">
+            <actions>
+                <action id="createAction" type="list_create"/>
+                <action id="editAction" type="list_edit"/>
+                <action id="removeAction" type="list_remove"/>
+            </actions>
+            <columns resizable="true">
+                <column property="name"/>
+                <column property="surname"/>
+                <column property="birthDate"/>
+                <column property="sex"/>
+                <column property="email"/>
+                <column property="phone"/>
+                <column property="telegramUserName"/>
+                <column property="linkedin"/>
+            </columns>
+        </dataGrid>
+        <hbox id="lookupActions" visible="false">
+            <button id="selectButton" action="selectAction"/>
+            <button id="discardButton" action="discardAction"/>
+        </hbox>
+    </layout>
+</view>

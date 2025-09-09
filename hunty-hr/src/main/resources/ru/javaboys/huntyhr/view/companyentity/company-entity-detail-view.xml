@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<view xmlns="http://jmix.io/schema/flowui/view"
+      title="msg://companyEntityDetailView.title"
+      focusComponent="form">
+    <data>
+        <instance id="companyEntityDc"
+                  class="ru.javaboys.huntyhr.entity.CompanyEntity">
+            <fetchPlan extends="_base"/>
+            <loader id="companyEntityDl"/>
+        </instance>
+    </data>
+    <facets>
+        <dataLoadCoordinator auto="true"/>
+    </facets>
+    <actions>
+        <action id="saveAction" type="detail_saveClose"/>
+        <action id="closeAction" type="detail_close"/>
+    </actions>
+    <layout>
+        <formLayout id="form" dataContainer="companyEntityDc">
+            <responsiveSteps>
+                <responsiveStep minWidth="0" columns="1"/>
+                <responsiveStep minWidth="40em" columns="2"/>
+            </responsiveSteps>
+            <textArea id="nameField" height="9.5em" property="name"/>
+        </formLayout>
+        <hbox id="detailActions">
+            <button id="saveAndCloseButton" action="saveAction"/>
+            <button id="closeButton" action="closeAction"/>
+        </hbox>
+    </layout>
+</view>

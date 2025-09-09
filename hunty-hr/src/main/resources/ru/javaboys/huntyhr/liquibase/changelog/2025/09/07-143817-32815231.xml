@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+                      http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-latest.xsd" objectQuotingStrategy="QUOTE_ONLY_RESERVED_WORDS">
+    <changeSet id="1" author="hunty-hr">
+        <createTable tableName="INTERVIEW_SCENARIO_ENTITY_INTERVIEW_QUESTION_ENTITY_LINK">
+            <column name="INTERVIEW_QUESTION_ENTITY_ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_INTERVIEW_SCENARIO_ENTITY_INTERVIEW_QUESTION_ENTITY_LINK"/>
+            </column>
+            <column name="INTERVIEW_SCENARIO_ENTITY_ID" type="UUID">
+                <constraints nullable="false" primaryKey="true" primaryKeyName="PK_INTERVIEW_SCENARIO_ENTITY_INTERVIEW_QUESTION_ENTITY_LINK"/>
+            </column>
+        </createTable>
+    </changeSet>
+    <changeSet id="2" author="hunty-hr">
+        <addForeignKeyConstraint baseColumnNames="INTERVIEW_QUESTION_ENTITY_ID" baseTableName="INTERVIEW_SCENARIO_ENTITY_INTERVIEW_QUESTION_ENTITY_LINK"
+                                 constraintName="FK_INTSCEENTINTQUEENT_ON_INTERVIEW_QUESTION_ENTITY" referencedColumnNames="ID"
+                                 referencedTableName="INTERVIEW_QUESTION_ENTITY"/>
+    </changeSet>
+    <changeSet id="3" author="hunty-hr">
+        <addForeignKeyConstraint baseColumnNames="INTERVIEW_SCENARIO_ENTITY_ID" baseTableName="INTERVIEW_SCENARIO_ENTITY_INTERVIEW_QUESTION_ENTITY_LINK"
+                                 constraintName="FK_INTSCEENTINTQUEENT_ON_INTERVIEW_SCENARIO_ENTITY" referencedColumnNames="ID"
+                                 referencedTableName="INTERVIEW_SCENARIO_ENTITY"/>
+    </changeSet>
+</databaseChangeLog>

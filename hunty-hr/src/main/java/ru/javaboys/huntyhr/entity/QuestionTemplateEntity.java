@@ -6,18 +6,12 @@ import io.jmix.core.entity.annotation.JmixGeneratedValue;
 import io.jmix.core.metamodel.annotation.JmixEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
-import jakarta.persistence.FetchType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Index;
-import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Lob;
-import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
 
 @JmixEntity
-@Table(name = "QUESTION_TEMPLATE_ENTITY", indexes = {
-        @Index(name = "IDX_QUESTION_TEMPLATE_ENTITY_INTERVIEW_SCENARIO_ENTITY", columnList = "INTERVIEW_SCENARIO_ENTITY_ID")
-})
+@Table(name = "QUESTION_TEMPLATE_ENTITY")
 @Entity
 public class QuestionTemplateEntity {
     @JmixGeneratedValue
@@ -37,18 +31,6 @@ public class QuestionTemplateEntity {
     @Column(name = "TEXT")
     @Lob
     private String text;
-
-    @JoinColumn(name = "INTERVIEW_SCENARIO_ENTITY_ID")
-    @ManyToOne(fetch = FetchType.LAZY)
-    private InterviewScenarioEntity interviewScenarioEntity;
-
-    public InterviewScenarioEntity getInterviewScenarioEntity() {
-        return interviewScenarioEntity;
-    }
-
-    public void setInterviewScenarioEntity(InterviewScenarioEntity interviewScenarioEntity) {
-        this.interviewScenarioEntity = interviewScenarioEntity;
-    }
 
     public String getText() {
         return text;

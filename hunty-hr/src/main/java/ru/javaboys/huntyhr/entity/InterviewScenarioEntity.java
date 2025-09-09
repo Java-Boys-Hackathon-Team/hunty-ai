@@ -9,7 +9,9 @@ import io.jmix.core.metamodel.annotation.JmixEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.Id;
-import jakarta.persistence.OneToMany;
+import jakarta.persistence.JoinColumn;
+import jakarta.persistence.JoinTable;
+import jakarta.persistence.ManyToMany;
 import jakarta.persistence.Table;
 
 @JmixEntity
@@ -28,14 +30,17 @@ public class InterviewScenarioEntity {
     @Column(name = "LANGUAGE_")
     private String language;
 
-    @OneToMany(mappedBy = "interviewScenarioEntity")
-    private List<QuestionTemplateEntity> questions;
+    @JoinTable(name = "INTERVIEW_SCENARIO_ENTITY_INTERVIEW_QUESTION_ENTITY_LINK",
+            joinColumns = @JoinColumn(name = "INTERVIEW_SCENARIO_ENTITY_ID"),
+            inverseJoinColumns = @JoinColumn(name = "INTERVIEW_QUESTION_ENTITY_ID"))
+    @ManyToMany
+    private List<InterviewQuestionEntity> questions;
 
-    public List<QuestionTemplateEntity> getQuestions() {
+    public List<InterviewQuestionEntity> getQuestions() {
         return questions;
     }
 
-    public void setQuestions(List<QuestionTemplateEntity> questions) {
+    public void setQuestions(List<InterviewQuestionEntity> questions) {
         this.questions = questions;
     }
 
