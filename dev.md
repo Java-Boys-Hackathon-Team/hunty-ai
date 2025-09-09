@@ -8,3 +8,5 @@ printf 'Привет, как у тебя дела? Сегодня я буду п
   -c ./app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx.json \
   -f ./piper.wav
 ```
+
+http://localhost:5173/meetings/abc

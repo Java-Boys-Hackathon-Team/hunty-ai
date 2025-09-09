@@ -76,6 +76,7 @@ def get_vosk_model():
         logger.info("Vosk model loaded")
     return _VOSK_MODEL_CACHE
 
+
 def _make_envelope(header: dict, payload: bytes) -> bytes:
     """
     Упаковывает бинарный фрейм: 256 байт JSON-заголовка (utf-8, подбит нулями) + payload.
@@ -90,15 +91,16 @@ def _make_envelope(header: dict, payload: bytes) -> bytes:
     padded = h.ljust(256, b"\x00")
     return padded + payload
 
+
 async def _piper_stream_tts(
-    websocket: WebSocket,
-    text: str,
-    *,
-    model_file: str | None = None,
-    config_file: str | None = None,
-    sample_rate: int = 24000,
-    channels: int = 1,
-    chunk_ms: int = 240,
+        websocket: WebSocket,
+        text: str,
+        *,
+        model_file: str | None = None,
+        config_file: str | None = None,
+        sample_rate: int = 24000,
+        channels: int = 1,
+        chunk_ms: int = 240,
 ) -> None:
     """
     Стримовое TTS через pip-версию Piper: `python -m piper`.
@@ -176,6 +178,7 @@ async def _piper_stream_tts(
             await proc.wait()
         except Exception:
             pass
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
