@@ -1,0 +1,17 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="Hunty-hr Jmix Application" type="JmixRunApplication">
+    <option name="envFilePaths">
+      <option value="$PROJECT_DIR$/.env" />
+    </option>
+    <option name="MAIN_CLASS_NAME" value="ru.javaboys.huntyhr.HuntyHrApplication" />
+    <module name="hunty-hr.main" />
+    <shortenClasspath name="ARGS_FILE" />
+    <option name="WORKING_DIRECTORY" value="$PROJECT_DIR$/hunty-hr" />
+    <method v="2">
+      <option name="JmixCleanConf" enabled="false" />
+      <option name="JmixCheckIncludes" enabled="false" />
+      <option name="JmixSyncDb" enabled="false" />
+      <option name="JmixAssemble" enabled="false" />
+    </method>
+  </configuration>
+</component>

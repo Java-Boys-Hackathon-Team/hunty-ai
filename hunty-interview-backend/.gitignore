@@ -334,3 +334,4 @@ cython_debug/
 #.idea/
 
 .idea/
+/app/models/

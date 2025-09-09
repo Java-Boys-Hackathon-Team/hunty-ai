@@ -224,3 +224,4 @@ Temporary Items
 .idea/
 src/main/frontend/generated/
 src/main/bundles/
+node_modules

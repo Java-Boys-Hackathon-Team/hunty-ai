@@ -249,4 +249,3 @@ poetry.lock
 pyproject.toml
 /.env
 /source-code-*.txt
-/hunty-interview-backend/app/models/
