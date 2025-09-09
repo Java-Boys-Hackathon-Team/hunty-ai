@@ -110,9 +110,7 @@ def add_minutes(iso: str, minutes: int) -> str:
         .replace("+00:00", "Z")
     )
 
-
-# Начальные данные
-MEETINGS["abc"] = {
+DEFAULT_MEETING = {
     "code": "abc",
     "candidateName": "Иван Петров",
     "greeting": "Добро пожаловать! Проверьте микрофон и камеру.\nКогда будете готовы - нажмите «Начать».",
@@ -122,17 +120,23 @@ MEETINGS["abc"] = {
     "endAt": None,
 }
 
+# Начальные данные
+MEETINGS["abc"] = DEFAULT_MEETING.copy()
+
 
 # --------- REST: получение и управление встречей ----------
 @app.get("/meetings/{code}")
 async def get_meeting(code: str):
-    m = MEETINGS.get(code)
-    if not m:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "not_found", "message": "Meeting not found"},
-        )
-    return m
+    if code not in MEETINGS:
+        MEETINGS[code] = {**DEFAULT_MEETING, "code": code}
+    return MEETINGS[code]
+#     m = MEETINGS.get(code)
+#     if not m:
+#         raise HTTPException(
+#             status_code=404,
+#             detail={"error": "not_found", "message": "Meeting not found"},
+#         )
+#     return m
 
 
 @app.post("/meetings/{code}/start")

@@ -66,16 +66,16 @@
                               itemsEnum="ru.javaboys.huntyhr.entity.VacancyStatusEnum"/>
 
                     <!-- Сценарий интервью -->
-                    <entityPicker id="scenarioPicker"
-                                  label="Сценарий интервью"
-                                  dataContainer="vacancyEntityDc"
-                                  property="scenario">
-                        <actions>
-                            <action id="entityLookup" type="entity_lookup"/>
-                            <action id="entityOpen" type="entity_open"/>
-                            <action id="entityClear" type="entity_clear"/>
-                        </actions>
-                    </entityPicker>
+<!--                    <entityPicker id="scenarioPicker"-->
+<!--                                  label="Сценарий интервью"-->
+<!--                                  dataContainer="vacancyEntityDc"-->
+<!--                                  property="scenario">-->
+<!--                        <actions>-->
+<!--                            <action id="entityLookup" type="entity_lookup"/>-->
+<!--                            <action id="entityOpen" type="entity_open"/>-->
+<!--                            <action id="entityClear" type="entity_clear"/>-->
+<!--                        </actions>-->
+<!--                    </entityPicker>-->
                 </formLayout>
             </tab>
 
