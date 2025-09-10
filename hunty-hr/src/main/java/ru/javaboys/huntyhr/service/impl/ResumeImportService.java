@@ -141,7 +141,7 @@ public class ResumeImportService {
 
                 // необязательные даты — парсим мягко
                 LocalDate start = parseYearOrYearMonth(ed.getStartDate());
-                LocalDate end   = parseYearOrYearMonth(ed.getEndDate());
+                LocalDate end = parseYearOrYearMonth(ed.getEndDate());
                 // если в твоей модели у EducationEntity нет полей дат — пропусти эти строки.
                 // Если планируешь добавить START_AT/END_DATE — распакуй как ниже:
                 // e.setStartAt(start);
@@ -175,7 +175,7 @@ public class ResumeImportService {
 
                 // даты
                 LocalDate start = parseYearOrYearMonth(ex.getStartDate());
-                LocalDate end   = parseExperienceEnd(ex.getEndDate());
+                LocalDate end = parseExperienceEnd(ex.getEndDate());
                 re.setStartAt(start);
                 re.setEndDate(end);
 
@@ -232,7 +232,7 @@ public class ResumeImportService {
         SexEnum sex = parseSex(dto.getSex());
         String emailNorm = normalizeEmail(dto.getEmail());
         String phoneNorm = normalizePhone(dto.getPhone()); // только цифры или null
-        String tgNorm = normalizeTelegram(dto.getTelegram()); // без @, lower
+        String tgNorm = normalizeTelegram(dto.getTelegram()); // без @
 
         CandidateEntity found = null;
 
@@ -324,10 +324,10 @@ public class ResumeImportService {
         if (v.isEmpty()) return null;
         v = v.replace("@", "");
         // поддержим ссылки вида t.me/user
-        int idx = v.toLowerCase(Locale.ROOT).indexOf("t.me/");
+        int idx = v.indexOf("t.me/");
         if (idx >= 0) v = v.substring(idx + "t.me/".length());
         v = v.trim();
-        return v.isEmpty() ? null : v.toLowerCase(Locale.ROOT);
+        return v.isEmpty() ? null : v;
     }
 
     private static boolean isBlank(String s) {
@@ -357,7 +357,8 @@ public class ResumeImportService {
                 LocalDate m = parseRuMonthYear(t);
                 if (m != null) return m;
             }
-        } catch (Exception ignore) {}
+        } catch (Exception ignore) {
+        }
         return null;
     }
 
@@ -376,7 +377,10 @@ public class ResumeImportService {
         };
         int month = -1;
         for (int i = 0; i < months.length; i++) {
-            if (t.contains(months[i])) { month = i + 1; break; }
+            if (t.contains(months[i])) {
+                month = i + 1;
+                break;
+            }
         }
         String year = null;
         var m = java.util.regex.Pattern.compile("(20\\d{2}|19\\d{2})").matcher(t);
