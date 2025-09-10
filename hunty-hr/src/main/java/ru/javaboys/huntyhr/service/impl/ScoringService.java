@@ -307,7 +307,7 @@ public class ScoringService {
       <section style="font-family:system-ui,Segoe UI,Roboto,Arial,sans-serif;line-height:1.45">
         <div style="display:flex;align-items:center;gap:.6rem;margin-bottom:.6rem">
           <div style="font-weight:600;font-size:1.1rem;">Анализ резюме</div>
-          <span style="padding:.15rem .5rem;border-radius:.5rem;background:#f2f4f7;font-size:.85rem;">
+          <span style="padding:.15rem .5rem;border-radius:.5rem;font-size:.85rem;">
     """);
 
         if (notBlank(d.getOverall())) {

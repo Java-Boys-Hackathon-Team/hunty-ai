@@ -131,21 +131,37 @@ public class VacancyEntityDetailView extends StandardDetailView<VacancyEntity> {
             ));
         }
 
-        applicationsGrid.addComponentColumn(application -> {
-            Button button = uiComponents.create(Button.class);
-            button.setText("Открыть");
-            button.addClickListener(click -> {
-                CandidateEntity candidate = application.getCandidate();
-                if (candidate != null && candidate.getId() != null) {
-                    viewNavigators.detailView(this, CandidateEntity.class)
-                            .withViewClass(CandidateEntityDetailView.class)
-                            .editEntity(candidate)
-                            .withViewClass(CandidateEntityDetailView.class)
-                            .navigate();
-                }
-            });
-            return button;
-        }).setHeader("Кандидат");
+//        applicationsGrid.addComponentColumn(application -> {
+//            Button button = uiComponents.create(Button.class);
+//            button.setText("Открыть");
+//            button.addClickListener(click -> {
+//                CandidateEntity candidate = application.getCandidate();
+//                if (candidate != null && candidate.getId() != null) {
+//                    viewNavigators.detailView(this, CandidateEntity.class)
+//                            .withViewClass(CandidateEntityDetailView.class)
+//                            .editEntity(candidate)
+//                            .withViewClass(CandidateEntityDetailView.class)
+//                            .navigate();
+//                }
+//            });
+//            return button;
+//        }).setHeader("Кандидат");
+
+        applicationsGrid.addItemDoubleClickListener(itemDoubleClickEvent -> {
+            ApplicationEntity app = itemDoubleClickEvent.getItem();
+            CandidateEntity candidate = app != null ? app.getCandidate() : null;
+
+            if (candidate != null && candidate.getId() != null) {
+                viewNavigators.detailView(this, CandidateEntity.class)
+                        .withViewClass(CandidateEntityDetailView.class)
+                        .editEntity(candidate)
+                        .navigate(); // или .withOpenMode(OpenMode.NEW_TAB) если нужно в новой вкладке
+            } else {
+                notifications.create("У записи нет кандидата")
+                        .withType(Notifications.Type.WARNING)
+                        .show();
+            }
+        });
 
         applicationsGrid.addComponentColumn(app -> {
             Button b = uiComponents.create(Button.class);
