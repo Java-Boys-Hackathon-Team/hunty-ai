@@ -13,6 +13,7 @@ from fastapi.staticfiles import StaticFiles
 from starlette import status
 from starlette.middleware.cors import CORSMiddleware
 
+from app.ai.agent import InterviewAgent
 from app.db import check_db
 from app.repositories.storage import save_video_and_json_refs
 from app.s3 import check_s3, upload_file
@@ -22,7 +23,6 @@ from app.video_processing.process import (
     process_video_balanced,
     save_video_chunk,
 )
-from app.ai.agent import InterviewAgent
 
 # --------- логирование и версия мока ----------
 logging.basicConfig(
@@ -275,7 +275,6 @@ def add_minutes(iso: str, minutes: int) -> str:
     )
 
 
-
 # --------- REST: получение и управление встречей ----------
 @app.get("/meetings/{code}")
 async def get_meeting(code: str):
@@ -305,11 +304,10 @@ async def start_meeting(
             "code": code,
             "status": "not_started",
             "candidateName": (payload or {}).get("candidateName") if payload else None,
-            "interviewId": None,
+            "interviewId": (payload or {}).get("interviewId") if payload else None,
             "token": None,
             "endAt": None,
         }
-        MEETINGS[code] = m
     else:
         # Обновляем имя кандидата, если пришло
         if payload and payload.get("candidateName"):
@@ -339,6 +337,7 @@ async def start_meeting(
     except Exception as e:
         logger.exception("Failed to init AI session")
 
+    MEETINGS[code] = m
     return {"startAt": start_at, "endAt": end_at, "interviewId": interview_id, "token": token}
 
 
@@ -346,16 +345,21 @@ async def start_meeting(
 async def end_meeting(code: str):
     m = MEETINGS.get(code)
     if not m:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "not_found", "message": "Meeting not found"},
-        )
+        m = {
+            "code": code,
+            "status": "not_started",
+            "candidateName": None,
+            "interviewId": None,
+            "token": None,
+            "endAt": None,
+        }
     if m.get("status") != "running":
         raise HTTPException(
             status_code=409,
             detail={"error": "not_running", "message": "Meeting not running"},
         )
     m.update({"status": "ended", "endAt": now_iso()})
+    MEETINGS[code] = m
     return {"ok": True}
 
 
@@ -420,7 +424,7 @@ async def voice_gateway(websocket: WebSocket):
                     if ch in enders:
                         # include the ender
                         sent = buf[: i + 1].strip()
-                        rest = buf[i + 1 :]
+                        rest = buf[i + 1:]
                         if sent:
                             yield ("sentence", sent)
                         buf = rest.lstrip()
@@ -461,7 +465,7 @@ async def voice_gateway(websocket: WebSocket):
                     last_split = 0
                     for i, ch in enumerate(tmp):
                         if ch in ".!?\n":
-                            s = tmp[last_split : i + 1].strip()
+                            s = tmp[last_split: i + 1].strip()
                             if s:
                                 flush_sents.append(s)
                             last_split = i + 1
@@ -719,14 +723,16 @@ async def voice_gateway(websocket: WebSocket):
                         session_token = m.get('token')
                         if not session_code or not session_token:
                             try:
-                                await websocket.send_json({"type": "system", "event": "error", "message": "Missing meeting code or token"})
+                                await websocket.send_json(
+                                    {"type": "system", "event": "error", "message": "Missing meeting code or token"})
                             except Exception:
                                 pass
                         else:
                             meeting = MEETINGS.get(session_code)
                             if not meeting or meeting.get("token") != session_token:
                                 try:
-                                    await websocket.send_json({"type": "system", "event": "error", "message": "Invalid meeting code or token"})
+                                    await websocket.send_json({"type": "system", "event": "error",
+                                                               "message": "Invalid meeting code or token"})
                                 except Exception:
                                     pass
                             else:
@@ -781,6 +787,7 @@ async def voice_gateway(websocket: WebSocket):
             await websocket.close()
         except Exception:
             pass
+
 
 @app.get("/health")
 async def health():
