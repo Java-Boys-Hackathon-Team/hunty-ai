@@ -60,6 +60,8 @@ services:
       - PIPER_MODEL_PATH=/app/app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx
       - PIPER_CONFIG_PATH=/app/app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx.json
       - PIPER_SPEAKER=0
+    env_file:
+      - .env
     volumes:
       - ./hunty-interview-backend/app/models:/app/app/models:ro
     ports:
