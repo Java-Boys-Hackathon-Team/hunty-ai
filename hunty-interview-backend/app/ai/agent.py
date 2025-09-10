@@ -1,4 +1,5 @@
 import os
+import asyncio
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, AsyncGenerator
 
@@ -15,47 +16,18 @@ except Exception:  # pragma: no cover
 from langchain_core.chat_history import BaseChatMessageHistory
 from langchain_core.messages import HumanMessage, SystemMessage, AIMessage
 from langchain_openai import ChatOpenAI
+from .planner import InterviewPlan, PlanItem, generate_plan
 
 SYSTEM_PROMPT = (
     "Ты — опытный технический интервьюер по Java (Senior уровень). "
+    "Всегда говори от лица интервьюера, а не кандидата. "
     "Веди интервью в доброжелательной и профессиональной манере. "
     "Цели: оценить архитектурное мышление, глубокое понимание JVM/JDK/Concurrency, Spring, SQL/NoSQL, распределённые системы, тестирование и DevOps-практики. "
     "Поддерживай диалог, отвечай на вопросы кандидата, а также задавай свои. "
     "Не перебивай кандидата: если кандидат говорит — дождись, пока он закончит (это обрабатывает голосовой шлюз). "
-    "Коротко формулируй вопросы (1–2 предложения). Если ответ неполный — задавай уточняющие вопросы. "
+    "Коротко формулируй вопросы (1–2 предложения). В одном ответе — ровно один вопрос. Не повторяй формулировку вопроса дважды. "
     "После вступления и рассказа кандидата о себе переходи к техническому блоку. В конце предложи кандидату задать вопросы о компании и вакансии. "
 )
-
-JAVA_SENIOR_QUESTIONS: List[str] = [
-    "Опишите, как работает JVM: загрузчик классов, область памяти (Heap/Stack/Metaspace), JIT/интерпретатор.",
-    "Какие типы GC вы знаете? Когда выбирать G1/ZGC/Shenandoah? Какие метрики мониторите?",
-    "Расскажите про правила happens-before в Java Memory Model и примеры гонок данных.",
-    "Чем отличается synchronized от ReentrantLock? Где оправдано использовать StampedLock?",
-    "Что такое false sharing и как его избежать?",
-    "Как реализовать безопасные публикации объектов между потоками?",
-    "Опишите механизмы неблокирующей синхронизации: CAS, Atomic-классы, LongAdder.",
-    "Какие есть практики проектирования высоконагруженных систем в Java?",
-    "Как устроен Spring Context, Bean lifecycle, scopes и прокси?",
-    "Расскажите про транзакции в Spring: propagation, isolation, pitfalls.",
-    "Spring WebFlux vs Spring MVC: когда что выбирать?",
-    "Опишите паттерны в слоистой архитектуре: Application, Domain, Infra, Ports/Adapters.",
-    "SQL vs NoSQL: критерии выбора. Нормализация, индексы, план выполнения запросов.",
-    "Как проектировать схемы в PostgreSQL для высокой нагрузки?",
-    "Кэширование: уровни, стратегии (write-through/back/around), invalidation.",
-    "Messaging: Kafka vs RabbitMQ. Гарантии доставки, порядок, потребление, ретраи, DLQ.",
-    "Идемпотентность и exactly-once semantics: как достигаете в практике?",
-    "Распределённые транзакции: саги, outbox pattern, transactional outbox, CDC.",
-    "Проектирование REST/GraphQL API: versioning, идемпотентность, пагинация, ошибки.",
-    "Observability: логи, метрики, трейсы. Какие используете инструменты и метрики?",
-    "Тестирование: pyramid, контрактные тесты, тестирование интеграций с БД и брокерами.",
-    "Производительность: профилирование (JFR/Async-profiler), поиск утечек памяти.",
-    "Безопасность: OAuth2/OIDC, хранение секретов, шифрование, защита от уязвимостей.",
-    "DevOps: контейнеризация, CI/CD, Blue/Green и Canary deployments, feature flags.",
-    "Архитектура: подход к разбиению монолита, микросервисы, взаимодействие сервисов.",
-    "Проектный опыт: самый сложный инцидент, постмортем, изменения в процессе.",
-    "Код-ревью и стандарты: чем руководствуетесь?",
-    "Собеседование на культуру: как обучаете, менторите, делитесь знаниями?",
-]
 
 
 @dataclass
@@ -68,8 +40,10 @@ class InterviewSession:
         "Вакансия: Senior Java Backend Engineer в команду платформенных сервисов (сильный фокус на производительности и надёжности)."
     )
     phase: str = "intro"  # intro | tech | candidate_q | done
-    questions: List[str] = field(default_factory=list)
+    plan: List[PlanItem] = field(default_factory=list)
     q_index: int = 0
+    followup_index: int = 0  # 0..n within current question
+    asked_main: bool = False  # whether main question for q_index has been asked
     history: BaseChatMessageHistory = field(default_factory=InMemoryChatMessageHistory)
 
 
@@ -89,10 +63,15 @@ class InterviewAgent:
         sid = self._sid(code, token)
         if sid not in self.sessions:
             sess = InterviewSession(code=code, token=token, candidate_name=candidate_name)
-            sess.questions = list(JAVA_SENIOR_QUESTIONS)
             # Seed with system prompt
             sess.history.add_message(SystemMessage(content=SYSTEM_PROMPT))
             self.sessions[sid] = sess
+            # Schedule background plan generation
+            try:
+                loop = asyncio.get_event_loop()
+                loop.create_task(self._generate_plan_async(sid))
+            except Exception:
+                pass
         else:
             sess = self.sessions[sid]
             if candidate_name:
@@ -101,61 +80,81 @@ class InterviewAgent:
 
     def _build_prompt(self, sess: InterviewSession, user_text: Optional[str]) -> List:
         msgs: List = []
-        # History is managed separately; we only supply the new turn
+        # We add only the new turn instruction; full history is passed separately
         if user_text is None:
-            # Initial greeting
-            intro = (
-                f"Привет, {sess.candidate_name or 'коллега'}! Я — технический интервьюер. "
-                f"Компания: {sess.company_legend}. "
-                "Для начала расскажите, пожалуйста, кратко о себе и вашем самом значимом опыте, "
-                "релевантном вакансии. На что вы делаете упор сейчас?"
+            # Ask model to produce an interviewer greeting (not candidate speech)
+            instruction = (
+                f"Сгенерируй короткое приветствие от лица интервьюера (1–2 предложения) для кандидата {sess.candidate_name or ''}. "
+                f"Коротко упомяни контекст компании: {sess.company_legend}. "
+                "Попроси кандидата кратко рассказать о себе и релевантном опыте. "
+                "Говори от лица интервьюера."
             )
-            msgs.append(HumanMessage(content=intro))
+            msgs.append(HumanMessage(content=instruction))
         else:
             if sess.phase == "intro":
-                # After candidate introduction, smoothly go to tech questions
-                next_q = sess.questions[sess.q_index] if sess.q_index < len(sess.questions) else None
-                if next_q:
-                    prompt = (
-                            "Кандидат рассказал о себе. Ответь в 2–3 предложениях, отзеркаливая ключевые моменты, "
-                            "и задай следующий технический вопрос: " + next_q
+                # Move to first technical question
+                if sess.plan and len(sess.plan) > 0:
+                    q = sess.plan[0].question
+                    instruction = (
+                        "Кандидат кратко рассказал о себе. Коротко отзеркаль ключевые моменты (1–2 предложения) "
+                        "и задай первый технический вопрос. В одном ответе — ровно один вопрос, без повторов.\n"
+                        f"Вопрос: {q}"
                     )
                 else:
-                    prompt = (
-                        "Технические вопросы исчерпаны. Предложи кандидату задать вопросы о компании/команде/процессе."
+                    instruction = (
+                        "Плана вопросов ещё нет. Вежливо сообщи об этом и предложи кандидату задать вопросы о компании/команде."
                     )
-                msgs.append(HumanMessage(content=f"{user_text}\n\nИнструкция интервьюера: {prompt}"))
+                msgs.append(HumanMessage(content=f"{user_text}\n\nИнструкция интервьюера: {instruction}"))
             elif sess.phase == "tech":
-                # Ask next technical question or move to candidate questions
-                if sess.q_index < len(sess.questions) - 1:
-                    next_q = sess.questions[sess.q_index + 1]
-                    prompt = (
-                            "Кратко поблагодари за ответ и задай следующий технический вопрос: " + next_q
+                # Ask main or follow-up or advance to next main
+                item = sess.plan[sess.q_index] if (sess.plan and sess.q_index < len(sess.plan)) else None
+                if item is None:
+                    instruction = (
+                        "План вопросов пуст. Вежливо перейди к блоку вопросов кандидата о компании."
                     )
-                    msgs.append(HumanMessage(content=f"{user_text}\n\nИнструкция интервьюера: {prompt}"))
                 else:
-                    prompt = (
-                        "Технические вопросы исчерпаны. Переведи разговор к вопросам кандидата о компании."
-                    )
-                    msgs.append(HumanMessage(content=f"{user_text}\n\nИнструкция интервьюера: {prompt}"))
+                    if not sess.asked_main:
+                        instruction = (
+                            "Поблагодари за ответ и задай основной технический вопрос по текущей теме. "
+                            "Ровно один вопрос, без дублирования формулировки.\n"
+                            f"Вопрос: {item.question}"
+                        )
+                    else:
+                        if sess.followup_index < len(item.followups):
+                            fu = item.followups[sess.followup_index]
+                            instruction = (
+                                "Задай один уточняющий follow-up по теме текущего вопроса. Коротко.\n"
+                                f"Follow-up: {fu}"
+                            )
+                        else:
+                            # advance to next main question if exists
+                            if sess.q_index + 1 < len(sess.plan):
+                                next_q = sess.plan[sess.q_index + 1].question
+                                instruction = (
+                                    "Коротко поблагодари за ответ и задай следующий технический вопрос. "
+                                    "Ровно один вопрос, без повторов.\n"
+                                    f"Вопрос: {next_q}"
+                                )
+                            else:
+                                instruction = (
+                                    "Технические вопросы исчерпаны. Вежливо предложи кандидату задать вопросы о компании/команде/процессах."
+                                )
+                msgs.append(HumanMessage(content=f"{user_text}\n\nИнструкция интервьюера: {instruction}"))
             elif sess.phase == "candidate_q":
-                prompt = (
-                        "Поддерживай диалог, отвечай на вопросы о компании/вакансии, «легенда»: "
-                        + sess.company_legend + ". Заверши интервью, когда вопросов больше нет."
+                instruction = (
+                    "Поддерживай диалог и отвечай на вопросы о компании/вакансии. "
+                    f"Легенда: {sess.company_legend}. Заверши интервью, когда вопросов больше нет."
                 )
-                msgs.append(HumanMessage(content=f"{user_text}\n\nИнструкция интервьюера: {prompt}"))
+                msgs.append(HumanMessage(content=f"{user_text}\n\nИнструкция интервьюера: {instruction}"))
             else:
                 msgs.append(HumanMessage(content=user_text))
         return msgs
 
     def _advance_phase(self, sess: InterviewSession):
-        # Advance phase based on q_index
-        if sess.phase == "intro":
-            sess.phase = "tech"
-        elif sess.phase == "tech" and sess.q_index >= len(sess.questions) - 1:
-            sess.phase = "candidate_q"
-        elif sess.phase == "candidate_q":
-            sess.phase = "done"
+        # Minimal phase advance used in candidate questions
+        if sess.phase == "candidate_q":
+            # stay until the conversation naturally ends
+            return
 
     async def stream_reply(
             self, code: str, token: str, user_text: Optional[str]
@@ -164,6 +163,11 @@ class InterviewAgent:
         user_text=None indicates initial greeting turn initiated by the system.
         """
         sess = self.ensure_session(code, token)
+        sid = self._sid(code, token)
+
+        # Ensure plan is ready when we need to ask tech questions
+        if user_text is not None and sess.phase in ("intro", "tech") and not sess.plan:
+            await self._generate_plan_async(sid)
 
         # Build new turn (human side)
         messages = self._build_prompt(sess, user_text)
@@ -184,16 +188,86 @@ class InterviewAgent:
         if content_accum:
             sess.history.add_message(AIMessage(content=content_accum))
 
-        # Update state (advance question index/phase heuristically)
+        # Update deterministic state machine to avoid duplicates
         if user_text is None:
+            # We have just greeted and asked to introduce themselves
             sess.phase = "intro"
-        else:
-            if sess.phase in ("intro", "tech") and sess.q_index < len(sess.questions):
+            # reset indices; plan may still be generating in background
+            sess.q_index = 0
+            sess.followup_index = 0
+            sess.asked_main = False
+            return
+
+        if sess.phase == "intro":
+            # We just asked the first main question (index 0)
+            if sess.plan:
+                sess.phase = "tech"
+                sess.q_index = 0
+                sess.followup_index = 0
+                sess.asked_main = True
+            else:
+                # no plan — go to candidate questions block
+                sess.phase = "candidate_q"
+            return
+
+        if sess.phase == "tech":
+            if not sess.plan or sess.q_index >= len(sess.plan):
+                sess.phase = "candidate_q"
+                return
+            item = sess.plan[sess.q_index]
+            if not sess.asked_main:
+                # We just asked main question for current item
+                sess.asked_main = True
+                sess.followup_index = 0
+                return
+            # After main asked: either asked a follow-up or moved to next main
+            if sess.followup_index < len(item.followups):
+                # We just asked a follow-up
+                sess.followup_index += 1
+                return
+            # No followups remain => we just asked next main or switched to candidate questions
+            if sess.q_index + 1 < len(sess.plan):
                 sess.q_index += 1
-            self._advance_phase(sess)
+                sess.asked_main = True  # we have just asked the next main
+                sess.followup_index = 0
+            else:
+                sess.phase = "candidate_q"
+            return
+
+        # candidate_q/done stay as-is
 
     def get_next_question(self, code: str, token: str) -> Optional[str]:
         sess = self.ensure_session(code, token)
-        if sess.q_index < len(sess.questions):
-            return sess.questions[sess.q_index]
+        if not sess.plan:
+            return None
+        if sess.phase == "tech":
+            item = sess.plan[sess.q_index] if sess.q_index < len(sess.plan) else None
+            if not item:
+                return None
+            if not sess.asked_main:
+                return item.question
+            if sess.followup_index < len(item.followups):
+                return item.followups[sess.followup_index]
+            if sess.q_index + 1 < len(sess.plan):
+                return sess.plan[sess.q_index + 1].question
+            return None
+        if sess.phase == "intro":
+            return sess.plan[0].question if sess.plan else None
         return None
+
+    async def _generate_plan_async(self, sid: str) -> None:
+        """Generate and store interview plan for a session if missing."""
+        try:
+            sess = self.sessions.get(sid)
+            if not sess or (sess.plan and len(sess.plan) > 0):
+                return
+            plan = await generate_plan(self.llm)
+            # Store as list of PlanItem
+            sess.plan = list(plan.items)
+            # ensure indices are sane
+            sess.q_index = 0
+            sess.followup_index = 0
+            sess.asked_main = False
+        except Exception:
+            # leave plan empty if failed; agent will gracefully handle
+            pass
