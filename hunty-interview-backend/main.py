@@ -22,6 +22,7 @@ from app.video_processing.process import (
     process_video_balanced,
     save_video_chunk,
 )
+from app.ai.agent import InterviewAgent
 
 # --------- логирование и версия мока ----------
 logging.basicConfig(
@@ -100,6 +101,7 @@ async def _piper_stream_tts(
         sample_rate: int = 24000,
         channels: int = 1,
         chunk_ms: int = 240,
+        cancel_event: asyncio.Event | None = None,
 ) -> None:
     """
     Стримовое TTS через pip-версию Piper: `python -m piper`.
@@ -162,18 +164,31 @@ async def _piper_stream_tts(
     buf = b""
     try:
         while True:
+            if cancel_event is not None and cancel_event.is_set():
+                try:
+                    proc.kill()
+                except Exception:
+                    pass
+                break
             chunk = await proc.stdout.read(4096)
             if not chunk:
                 break
             buf += chunk
             while len(buf) >= chunk_bytes:
+                if cancel_event is not None and cancel_event.is_set():
+                    try:
+                        proc.kill()
+                    except Exception:
+                        pass
+                    buf = b""
+                    break
                 payload = buf[:chunk_bytes]
                 buf = buf[chunk_bytes:]
                 # 256-байтный заголовок + payload
                 h = json.dumps(header, ensure_ascii=False).encode("utf-8")[:256].ljust(256, b"\x00")
                 await websocket.send_bytes(h + payload)
 
-        if buf:
+        if buf and not (cancel_event is not None and cancel_event.is_set()):
             h = json.dumps(header, ensure_ascii=False).encode("utf-8")[:256].ljust(256, b"\x00")
             await websocket.send_bytes(h + buf)
 
@@ -200,6 +215,9 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(lifespan=lifespan)
+
+# Глобальный AI-агент (LangChain + OpenAI GPT-4o)
+AI_AGENT = InterviewAgent()
 
 # Разрешаем CORS для простоты мока
 app.add_middleware(
@@ -306,6 +324,13 @@ async def start_meeting(
     token = f"tok_{hex(abs(hash(interview_id + start_at)))[2:]}"
 
     m.update({"status": "running", "startAt": start_at, "endAt": end_at, "interviewId": interview_id, "token": token})
+
+    # Инициализируем AI-сессию и заранее генерируем вопросы
+    try:
+        AI_AGENT.ensure_session(code, token, candidate_name=m.get("candidateName"))
+    except Exception as e:
+        logger.exception("Failed to init AI session")
+
     return {"startAt": start_at, "endAt": end_at, "interviewId": interview_id, "token": token}
 
 
@@ -362,15 +387,108 @@ async def voice_gateway(websocket: WebSocket):
     ffmpeg_reader_task: Optional[asyncio.Task] = None
     recognizer_task: Optional[asyncio.Task] = None
 
+    # AI session binding
+    session_code: Optional[str] = None
+    session_token: Optional[str] = None
+
+    # Agent streaming and TTS control
+    tts_cancel_event: asyncio.Event = asyncio.Event()
+    agent_stream_task: Optional[asyncio.Task] = None
+
     bytes_processed = 0
     last_partial: str = ""
     last_final_to_ms = 0
+
+    def _sentence_chunks():
+        buf = ""
+        enders = ".!?\n"
+        while True:
+            chunk = yield
+            if chunk:
+                buf += chunk
+                # emit full sentences
+                last_emit = 0
+                for i, ch in enumerate(buf):
+                    if ch in enders:
+                        # include the ender
+                        sent = buf[: i + 1].strip()
+                        rest = buf[i + 1 :]
+                        if sent:
+                            yield ("sentence", sent)
+                        buf = rest.lstrip()
+                        last_emit = i + 1
+            # safe-guard: if buffer too long, split by space
+            if len(buf) > 800:
+                parts = buf.split(" ")
+                head = " ".join(parts[:-1])
+                buf = parts[-1]
+                if head.strip():
+                    yield ("sentence", head.strip())
+
+    async def _stream_agent_and_tts(user_text: Optional[str]):
+        nonlocal agent_stream_task
+        if not session_code or not session_token:
+            return
+        # reset cancel flag
+        tts_cancel_event.clear()
+
+        async def runner():
+            try:
+                # streaming LLM tokens
+                # send partial text to UI and TTS per sentence
+                await websocket.send_json({"type": "ai.start"})
+                sent_buffer = ""
+                async for text_chunk in AI_AGENT.stream_reply(session_code, session_token, user_text):
+                    # if user barged in — stop
+                    if tts_cancel_event.is_set():
+                        break
+                    try:
+                        await websocket.send_json({"type": "ai.partial", "text": text_chunk})
+                    except Exception:
+                        pass
+                    sent_buffer += text_chunk
+                    # sentence flush
+                    flush_sents: List[str] = []
+                    tmp = sent_buffer
+                    last_split = 0
+                    for i, ch in enumerate(tmp):
+                        if ch in ".!?\n":
+                            s = tmp[last_split : i + 1].strip()
+                            if s:
+                                flush_sents.append(s)
+                            last_split = i + 1
+                    sent_buffer = tmp[last_split:].lstrip()
+                    for s in flush_sents:
+                        if tts_cancel_event.is_set():
+                            break
+                        try:
+                            await _piper_stream_tts(websocket, s, cancel_event=tts_cancel_event)
+                        except Exception:
+                            logger.exception("TTS (piper) failed for sentence")
+                # flush tail
+                if not tts_cancel_event.is_set() and sent_buffer.strip():
+                    try:
+                        await _piper_stream_tts(websocket, sent_buffer.strip(), cancel_event=tts_cancel_event)
+                    except Exception:
+                        logger.exception("TTS (piper tail) failed")
+                if not tts_cancel_event.is_set():
+                    try:
+                        await websocket.send_json({"type": "ai.final"})
+                    except Exception:
+                        pass
+            except Exception:
+                logger.exception("Agent streaming failed")
+            finally:
+                # mark done
+                pass
+
+        agent_stream_task = asyncio.create_task(runner())
 
     async def recognizer_loop():
         """
         Читает PCM16 из pcm_queue, гоняет через Vosk/KaldiRecognizer,
         присылает stt.partial/stt.final в websocket.
-        На каждом финале запускает Piper TTS (эхо) и стримит чанки на фронт.
+        Управляет барж-ином: если пользователь говорит — останавливаем текущий TTS/агента.
         """
         nonlocal bytes_processed, last_partial, last_final_to_ms
 
@@ -419,10 +537,18 @@ async def voice_gateway(websocket: WebSocket):
                         last_partial = ""
                         last_final_to_ms = current_ms
 
+                        # Барж-ин: останавливаем текущий поток TTS/агента и запускаем новый ответ агента
                         try:
-                            await _piper_stream_tts(websocket, text)
+                            tts_cancel_event.set()
+                            if agent_stream_task:
+                                try:
+                                    await asyncio.sleep(0)  # give a chance to cancel
+                                except Exception:
+                                    pass
+                            tts_cancel_event.clear()
+                            await _stream_agent_and_tts(text)
                         except Exception:
-                            logger.exception("TTS (piper) failed")
+                            logger.exception("Agent stream failed to start")
                     else:
                         # Финал без текста — просто фиксируем таймлайн
                         last_partial = ""
@@ -446,6 +572,12 @@ async def voice_gateway(websocket: WebSocket):
                             })
                         except Exception:
                             pass
+                        # Пользователь говорит — останавливаем TTS/агента (барж-ин)
+                        try:
+                            if agent_stream_task and not agent_stream_task.done():
+                                tts_cancel_event.set()
+                        except Exception:
+                            pass
                         last_partial = ptxt
         finally:
             # Финальный дренаж распознавателя
@@ -465,11 +597,13 @@ async def voice_gateway(websocket: WebSocket):
                         })
                     except Exception:
                         pass
-                    # эхо для хвоста (опционально; если не нужно — закомментируй)
+                    # Передаём хвост в агента
                     try:
-                        await _piper_stream_tts(websocket, ftxt)
+                        tts_cancel_event.set()
+                        tts_cancel_event.clear()
+                        await _stream_agent_and_tts(ftxt)
                     except Exception:
-                        logger.exception("TTS (piper, flush) failed")
+                        logger.exception("Agent (flush) failed")
             except Exception:
                 pass
 
@@ -572,6 +706,20 @@ async def voice_gateway(websocket: WebSocket):
                     action = m.get('action')
                     if action == 'start':
                         started = True
+                        # Привязываем сессию
+                        session_code = m.get('code') or m.get('meetingCode') or session_code or 'abc'
+                        session_token = m.get('token') or session_token or (MEETINGS.get(session_code, {}).get('token') if MEETINGS.get(session_code) else None)
+                        if session_code and session_token:
+                            try:
+                                AI_AGENT.ensure_session(session_code, session_token,
+                                                        candidate_name=MEETINGS.get(session_code, {}).get('candidateName'))
+                            except Exception:
+                                logger.exception('Failed to ensure AI session on start')
+                            # Поприветствовать кандидата
+                            try:
+                                await _stream_agent_and_tts(None)
+                            except Exception:
+                                logger.exception('Failed to stream greeting')
                     elif action == 'stop':
                         # graceful shutdown
                         break
