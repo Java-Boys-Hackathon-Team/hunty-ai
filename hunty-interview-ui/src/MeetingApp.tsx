@@ -706,11 +706,17 @@ const MeetingApp: React.FC = () => {
     const {connected, sendJSON, sendAudioChunk} = useVoiceWS({
         url: wsUrl,
         token: meeting?.token,
-        enabled: ui.page === 'live' && ui.status === 'running' && Boolean(meeting?.interviewId),
+        enabled: ui.page === 'live' && ui.status === 'running' && Boolean(meeting?.interviewId && meeting?.token),
         onSystem: (e) => {
             if (e.type === 'ready' && !startedRef.current) {
                 startedRef.current = true
-                sendJSON({type: 'control', action: 'start'})
+                const code = meeting?.code
+                const token = meeting?.token
+                if (code && token) {
+                    sendJSON({type: 'control', action: 'start', code, token})
+                } else {
+                    sendJSON({type: 'control', action: 'start'})
+                }
             } else if (e.type === 'ended') {
                 localStorage.removeItem(LS_END_AT_KEY)
                 setUI({page: 'lobby', status: 'ended'})

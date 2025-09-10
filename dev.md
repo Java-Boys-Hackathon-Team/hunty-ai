@@ -10,6 +10,7 @@ printf 'Привет, как у тебя дела? Сегодня я буду п
 ```
 
 http://localhost:5173/meetings/abc
+http://localhost:5173/meetings/test
 http://localhost:8085/meetings/abc
 
 https://t.me/huntyhrbot

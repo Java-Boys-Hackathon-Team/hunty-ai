@@ -274,25 +274,23 @@ def add_minutes(iso: str, minutes: int) -> str:
         .replace("+00:00", "Z")
     )
 
-DEFAULT_MEETING = {
-    "code": "abc",
-    "candidateName": "Иван Петров",
-    "greeting": "Добро пожаловать! Проверьте микрофон и камеру.\nКогда будете готовы - нажмите «Начать».",
-    "status": "not_started",  # not_started | running | ended
-    "interviewId": None,
-    "token": None,
-    "endAt": None,
-}
-
-# Начальные данные
-MEETINGS["abc"] = DEFAULT_MEETING.copy()
 
 
 # --------- REST: получение и управление встречей ----------
 @app.get("/meetings/{code}")
 async def get_meeting(code: str):
     if code not in MEETINGS:
-        MEETINGS[code] = {**DEFAULT_MEETING, "code": code}
+        # Initialize a new meeting with minimal defaults (no hardcoded code/greeting)
+        MEETINGS[code] = {
+            "code": code,
+            "status": "not_started",  # not_started | running | ended
+            "candidateName": None,
+            # UI pre-start message (not AI greeting)
+            "greeting": "Добро пожаловать! Проверьте микрофон и камеру.\nКогда будете готовы - нажмите «Начать».",
+            "interviewId": None,
+            "token": None,
+            "endAt": None,
+        }
     return MEETINGS[code]
 
 
@@ -302,10 +300,20 @@ async def start_meeting(
 ):
     m = MEETINGS.get(code)
     if not m:
-        raise HTTPException(
-            status_code=404,
-            detail={"error": "not_found", "message": "Meeting not found"},
-        )
+        # Автосоздание встречи для произвольного кода
+        m = {
+            "code": code,
+            "status": "not_started",
+            "candidateName": (payload or {}).get("candidateName") if payload else None,
+            "interviewId": None,
+            "token": None,
+            "endAt": None,
+        }
+        MEETINGS[code] = m
+    else:
+        # Обновляем имя кандидата, если пришло
+        if payload and payload.get("candidateName"):
+            m["candidateName"] = payload.get("candidateName")
 
     # Если уже идёт - возвращаем текущие поля
     if m.get("status") == "running":
@@ -706,20 +714,32 @@ async def voice_gateway(websocket: WebSocket):
                     action = m.get('action')
                     if action == 'start':
                         started = True
-                        # Привязываем сессию
-                        session_code = m.get('code') or m.get('meetingCode') or session_code or 'abc'
-                        session_token = m.get('token') or session_token or (MEETINGS.get(session_code, {}).get('token') if MEETINGS.get(session_code) else None)
-                        if session_code and session_token:
+                        # Привязываем сессию (без дефолтов 'abc')
+                        session_code = m.get('code') or m.get('meetingCode')
+                        session_token = m.get('token')
+                        if not session_code or not session_token:
                             try:
-                                AI_AGENT.ensure_session(session_code, session_token,
-                                                        candidate_name=MEETINGS.get(session_code, {}).get('candidateName'))
+                                await websocket.send_json({"type": "system", "event": "error", "message": "Missing meeting code or token"})
                             except Exception:
-                                logger.exception('Failed to ensure AI session on start')
-                            # Поприветствовать кандидата
-                            try:
-                                await _stream_agent_and_tts(None)
-                            except Exception:
-                                logger.exception('Failed to stream greeting')
+                                pass
+                        else:
+                            meeting = MEETINGS.get(session_code)
+                            if not meeting or meeting.get("token") != session_token:
+                                try:
+                                    await websocket.send_json({"type": "system", "event": "error", "message": "Invalid meeting code or token"})
+                                except Exception:
+                                    pass
+                            else:
+                                try:
+                                    AI_AGENT.ensure_session(session_code, session_token,
+                                                            candidate_name=meeting.get('candidateName'))
+                                except Exception:
+                                    logger.exception('Failed to ensure AI session on start')
+                                # Поприветствовать кандидата
+                                try:
+                                    await _stream_agent_and_tts(None)
+                                except Exception:
+                                    logger.exception('Failed to stream greeting')
                     elif action == 'stop':
                         # graceful shutdown
                         break
