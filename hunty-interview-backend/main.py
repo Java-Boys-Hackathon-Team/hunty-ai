@@ -30,7 +30,6 @@ logging.basicConfig(
     datefmt="%Y-%m-%d %H:%M:%S",
 )
 logger = logging.getLogger("app")
-VERSION_TAG = "voice-mock-v3-vad"
 
 # Пул потоков для блокирующих операций
 executor = ThreadPoolExecutor(max_workers=4)
@@ -194,7 +193,6 @@ async def lifespan(app: FastAPI):
         check_s3()  # проверяем доступ к S3
         logger.info("Startup checks passed: DB and S3 are reachable.")
         logger.info("MAIN FILE: %s", os.path.abspath(__file__))
-        logger.info("VERSION_TAG: %s", VERSION_TAG)
     except Exception:
         logger.exception("Startup checks failed: DB or S3 are not reachable.")
         raise
@@ -278,13 +276,6 @@ async def get_meeting(code: str):
     if code not in MEETINGS:
         MEETINGS[code] = {**DEFAULT_MEETING, "code": code}
     return MEETINGS[code]
-#     m = MEETINGS.get(code)
-#     if not m:
-#         raise HTTPException(
-#             status_code=404,
-#             detail={"error": "not_found", "message": "Meeting not found"},
-#         )
-#     return m
 
 
 @app.post("/meetings/{code}/start")
@@ -374,10 +365,6 @@ async def voice_gateway(websocket: WebSocket):
     bytes_processed = 0
     last_partial: str = ""
     last_final_to_ms = 0
-
-    def bytes_to_ms(n_bytes: int) -> int:
-        # s16le mono @ 16kHz => 32000 bytes/sec
-        return int((n_bytes / (2 * 1 * VOSK_SAMPLE_RATE)) * 1000)
 
     async def recognizer_loop():
         """
@@ -593,6 +580,7 @@ async def voice_gateway(websocket: WebSocket):
                             await websocket.send_json({"type": "system", "event": "ready"})
                         except Exception:
                             pass
+
     except WebSocketDisconnect:
         pass
     except Exception:
@@ -625,18 +613,6 @@ async def voice_gateway(websocket: WebSocket):
             await websocket.close()
         except Exception:
             pass
-
-
-# --------- прочие REST ручки ----------
-@app.get("/")
-async def root():
-    return {"message": "Hello World", "version": VERSION_TAG}
-
-
-@app.get("/hello/{name}")
-async def say_hello(name: str):
-    return {"message": f"Hello {name}"}
-
 
 @app.get("/health")
 async def health():
