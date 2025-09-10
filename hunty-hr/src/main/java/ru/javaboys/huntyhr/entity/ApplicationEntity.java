@@ -1,6 +1,8 @@
 package ru.javaboys.huntyhr.entity;
 
+import io.jmix.core.DeletePolicy;
 import io.jmix.core.entity.annotation.JmixGeneratedValue;
+import io.jmix.core.entity.annotation.OnDelete;
 import io.jmix.core.metamodel.annotation.JmixEntity;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -37,6 +39,7 @@ public class ApplicationEntity {
 
     @JoinColumn(name = "VACANCY_ID")
     @ManyToOne(fetch = FetchType.LAZY)
+    @OnDelete(DeletePolicy.CASCADE)
     private VacancyEntity vacancy;
 
     @Column(name = "STATUS")
