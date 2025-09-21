@@ -44,7 +44,7 @@ docker-compose rm -f
 docker image prune -f --filter "label=com.docker.compose.project=hunty-ai"
 
 # Шаг 6: Сборка проекта hunty-hr
-./gradlew -Pvaadin.productionMode=true bootJar -x test
+./gradlew -Dorg.gradle.jvmargs='-Xms1g -Xmx2g' -Pvaadin.productionMode=true bootJar -x test
 cd ..
 
 # Шаг 7: Запуск всех сервисов
