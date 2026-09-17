@@ -111,3 +111,73 @@ Hunty AI внедряет **ИИ-аватаров**, которые:
 3. Кандидаты проходят интервью с ИИ-аватаром.
 4. Hunty AI формирует отчёт и рекомендации.
 5. HR принимает решение на основе прозрачных данных.
+
+## Продовое окружение
+
+На сервере проект **не** поднимает свою базу и хранилище: они берутся из общей
+инфраструктуры (`common-infra`), одной на все проекты.
+
+| Где | Чем запускается | Что поднимается |
+|---|---|---|
+| Машина разработчика | `docker-compose.yml` | три сервиса проекта, PostgreSQL, MinIO, панель администрирования |
+| Сервер | `docker-compose.prod.yml` | только `hunty-hr`, `hunty-interview-backend` и `hunty-interview-ui`, подключённые к сети `common-infra` |
+
+Наружу публикуются три адреса: кабинет нанимающего менеджера, интерфейс
+собеседования и его API - последний отдельным поддоменом, потому что браузер
+обращается к нему напрямую (адрес зашит в сборку интерфейса):
+
+| Адрес | Сервис | Порт на сервере |
+|---|---|---|
+| `hunty-hr.javaboys.ru` | `hunty-hr` | `8083` |
+| `hunty-ai.javaboys.ru` | `hunty-interview-ui` | `8085` |
+| `api.hunty-ai.javaboys.ru` | `hunty-interview-backend` | `8084` |
+
+Параметры подключения и токены лежат на сервере в `~/hunty-ai/.env.prod`
+(права `600`) и в репозиторий не попадают:
+
+```properties
+PG_DATASOURCE_URL=jdbc:postgresql://common-postgres:5432/huntyhr
+PG_NAME=huntyhr
+PG_PASS=<пароль из add-project.sh>
+MINIO_ENDPOINT_URL=http://common-minio:9000
+MINIO_ACCESS_KEY=<пользователь MinIO>
+MINIO_SECRET_KEY=<пароль MinIO>
+MINIO_BUCKET=huntyhr-public
+DB_HOST=common-postgres
+DB_PORT=5432
+DB_NAME=huntyhr
+DB_USER=huntyhr
+DB_PASSWORD=<тот же пароль базы>
+S3_ENDPOINT_URL=http://common-minio:9000
+S3_ACCESS_KEY_ID=<пользователь MinIO>
+S3_SECRET_ACCESS_KEY=<пароль MinIO>
+S3_BUCKET=huntyhr-files
+TELEGRAM_BOT_ENABLED=false
+```
+
+Место в общей инфраструктуре заводится один раз - по бакету на каждый вид
+файлов:
+
+```sh
+~/common-infra/scripts/add-project.sh huntyhr --bucket huntyhr-files
+~/common-infra/scripts/add-project.sh huntyhr --bucket huntyhr-public
+```
+
+### Модели распознавания и синтеза речи
+
+Модели `vosk` (распознавание) и `piper` (синтез) лежат прямо в репозитории, в
+`hunty-interview-backend/app/models` (~150 МБ), и попадают в образ при сборке -
+отдельное хранилище для них не нужно, а без них сервис собеседования не
+поднимается.
+
+### Развёртывание на сервере
+
+```sh
+./deploy.sh main
+```
+
+Скрипт забирает ветку, собирает `hunty-hr` под Java 17, пересобирает все три
+образа и поднимает их продовым compose-файлом; перед этим проверяет, что рядом
+есть `.env.prod` и поднята сеть `common-infra`. То же самое делает workflow
+`CI/CD` (ручной запуск, параметр - имя ветки).
+

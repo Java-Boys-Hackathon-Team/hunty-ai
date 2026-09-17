@@ -44,7 +44,7 @@ jobs:
         with:
           host: javaboys.ru
           username: ubuntu
-          port: 50151
+          port: 50155
           key: ${{ secrets.SSH_PRIVATE_KEY }}
           script: |
             cd /home/ubuntu/hunty-ai

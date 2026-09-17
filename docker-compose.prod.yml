@@ -1,0 +1,74 @@
+name: hunty-ai
+
+# Продовый запуск на сервере: поднимаются три сервиса проекта.
+#
+#   docker compose -f docker-compose.prod.yml up -d --build
+#
+# База и объектное хранилище берутся из common-infra - общих сервисов сервера,
+# к которым подключены все проекты. Поэтому docker-compose.yml здесь намеренно
+# не подключается: описанные в нём postgres, pgadmin и minio нужны только для
+# локальной разработки, где проект должен быть самодостаточным.
+#
+# Параметры подключения и токены лежат в .env.prod рядом с этим файлом,
+# права 600, в репозиторий не коммитятся.
+
+services:
+  # Кабинет нанимающего менеджера (Jmix + Vaadin).
+  hunty-hr:
+    build:
+      dockerfile: ./Dockerfile
+      context: hunty-hr
+    container_name: hunty-hr
+    restart: always
+    # Именно entrypoint, а не command: в образе задан ENTRYPOINT, и command стал
+    # бы набором аргументов приложения, а не новой командой запуска.
+    entrypoint: ["java", "-Dspring.config.additional-location=file:/app/config/application-prod.properties", "-jar", "/app/hunty-hr.jar"]
+    volumes:
+      - './hunty-hr/src/main/resources/application-prod.properties:/app/config/application-prod.properties'
+    ports:
+      - "8083:8080"
+    env_file:
+      - .env.prod
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - SERVER_FORWARD_HEADERS_STRATEGY=framework
+    networks: [common-infra]
+
+  # Голосовое интервью: распознавание и синтез речи, разбор видео.
+  # Модели лежат в репозитории (app/models) и попадают в образ при сборке.
+  hunty-interview-backend:
+    build:
+      context: hunty-interview-backend
+      dockerfile: ./Dockerfile
+    container_name: hunty-interview-backend
+    restart: always
+    ports:
+      - "8084:8000"
+    env_file:
+      - .env.prod
+    environment:
+      # Пути внутри образа: каталог app целиком копируется Dockerfile-ом.
+      - VOSK_MODEL_PATH=/app/app/models/vosk/ru
+      - PIPER_MODEL_PATH=/app/app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx
+      - PIPER_CONFIG_PATH=/app/app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx.json
+      - PIPER_SPEAKER=0
+    networks: [common-infra]
+
+  # Статика интерфейса собеседования; к бэкенду обращается браузер напрямую
+  # по адресу api.hunty-ai.javaboys.ru, поэтому он тоже публикуется наружу.
+  hunty-interview-ui:
+    build:
+      context: hunty-interview-ui
+      dockerfile: ./Dockerfile
+    container_name: hunty-interview-ui
+    restart: always
+    ports:
+      - "8085:80"
+    networks: [common-infra]
+    depends_on:
+      - hunty-interview-backend
+
+networks:
+  common-infra:
+    # Сеть поднята проектом common-infra; здесь она только используется.
+    external: true

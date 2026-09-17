@@ -1,6 +1,7 @@
 package ru.javaboys.huntyhr.service.impl;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import org.telegram.telegrambots.longpolling.BotSession;
@@ -22,6 +23,9 @@ import lombok.extern.slf4j.Slf4j;
 @Component
 @Slf4j
 @RequiredArgsConstructor
+// Без настоящего токена бот бесконечно получает отказ от Telegram и забивает
+// журнал, поэтому его можно выключить настройкой; по умолчанию он включён.
+@ConditionalOnProperty(prefix = "telegram.bot", name = "enabled", havingValue = "true", matchIfMissing = true)
 public class TelegramBot implements SpringLongPollingBot, LongPollingSingleThreadUpdateConsumer {
 
     @Value("${telegram.bot.token}")

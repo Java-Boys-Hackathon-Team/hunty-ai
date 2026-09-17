@@ -1,13 +1,17 @@
+# Локальная разработка: сервисы проекта вместе со своими базой и хранилищем.
+# Продовый запуск описан отдельным файлом docker-compose.prod.yml.
+
 services:
 
   hunty-hr:
     build:
       dockerfile: ./Dockerfile
       context: hunty-hr
-    command: ["java", "-agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005", "-Dconfig.file=/app/config/application-prod.properties", "-jar", "hunty-hr.jar"]
+    # Именно entrypoint, а не command: в образе задан ENTRYPOINT, и command стал
+    # бы набором аргументов приложения, а не новой командой запуска.
+    entrypoint: ["java", "-Dspring.config.additional-location=file:/app/config/application-prod.properties", "-jar", "/app/hunty-hr.jar"]
     volumes:
-      - './src/main/resources/application-prod.properties:/app/config/application-prod.properties'
-      - ./sources:/app/sources
+      - './hunty-hr/src/main/resources/application-prod.properties:/app/config/application-prod.properties'
     restart: always
     container_name: hunty-hr
     ports:
@@ -19,8 +23,6 @@ services:
       - PG_PASS=pgadmin
     env_file:
       - .env
-    extra_hosts:
-      - "host.docker.internal:192.168.88.151"
     tty: true
     depends_on:
       - hunty-hr-db
@@ -83,8 +85,11 @@ services:
       - POSTGRES_PASSWORD=pgadmin
     command: postgres -c config_file=/etc/postgresql/postgresql.conf
 
+  # Панель нужна не всегда, поэтому она за профилем:
+  #   docker compose --profile tools up -d
   pgadmin:
     image: dpage/pgadmin4
+    profiles: [tools]
     restart: always
     environment:
       PGADMIN_DEFAULT_EMAIL: "kuramshin.py@yandex.ru"
