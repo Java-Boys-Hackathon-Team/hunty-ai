@@ -32,6 +32,15 @@ services:
     environment:
       - SPRING_PROFILES_ACTIVE=prod
       - SERVER_FORWARD_HEADERS_STRATEGY=framework
+      # Без этого JVM считает доступной память всего сервера и берёт под кучу
+      # четверть от неё, не замечая предела контейнера.
+      - JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=55
+    # Сервер делит память между всеми проектами, поэтому у каждого свой потолок.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1280M
     networks: [common-infra]
 
   # Голосовое интервью: распознавание и синтез речи, разбор видео.
@@ -56,6 +65,13 @@ services:
       - PIPER_MODEL_PATH=/app/app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx
       - PIPER_CONFIG_PATH=/app/app/models/piper/voice-ru-irinia-medium/ru-irinia-medium.onnx.json
       - PIPER_SPEAKER=0
+    # Распознавание речи держит модель в памяти, а разбор видео добавляет
+    # к этому кадры: предел заметно выше расхода в покое.
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 1500M
     networks: [common-infra]
 
   # Статика интерфейса собеседования; к бэкенду обращается браузер напрямую
@@ -68,6 +84,12 @@ services:
     restart: always
     ports:
       - "8085:80"
+    # Отдаёт собранную статику, больше ничего не делает.
+    deploy:
+      resources:
+        limits:
+          cpus: "0.5"
+          memory: 96M
     networks: [common-infra]
     depends_on:
       - hunty-interview-backend
