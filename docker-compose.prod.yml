@@ -35,13 +35,17 @@ services:
     networks: [common-infra]
 
   # Голосовое интервью: распознавание и синтез речи, разбор видео.
-  # Модели лежат в репозитории (app/models) и попадают в образ при сборке.
   hunty-interview-backend:
     build:
       context: hunty-interview-backend
       dockerfile: ./Dockerfile
     container_name: hunty-interview-backend
     restart: always
+    volumes:
+      # Модели лежат в репозитории, но в образ не попадают: .dockerignore
+      # исключает app/models, чтобы не тащить 150 МБ в контекст каждой сборки.
+      # Поэтому каталог монтируется - так же, как при локальной разработке.
+      - './hunty-interview-backend/app/models:/app/app/models:ro'
     ports:
       - "8084:8000"
     env_file:
