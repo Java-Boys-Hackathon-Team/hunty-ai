@@ -24,6 +24,8 @@ services:
     # бы набором аргументов приложения, а не новой командой запуска.
     entrypoint: ["java", "-Dspring.config.additional-location=file:/app/config/application-prod.properties", "-jar", "/app/hunty-hr.jar"]
     volumes:
+      # Агент трассировки: один файл на узел вместо копии в каждом образе.
+      - /opt/otel:/otel:ro
       - './hunty-hr/src/main/resources/application-prod.properties:/app/config/application-prod.properties'
     ports:
       - "8083:8080"
@@ -33,6 +35,16 @@ services:
     env_file:
       - .env.prod
     environment:
+      # Трассировка запросов. Агент лежит файлом на узле и встраивается в
+      # процесс переменной выше - кода приложения это не требует.
+      # Метрики уже собираются с actuator, логи - с вывода контейнера,
+      # поэтому через агента они не дублируются.
+      - OTEL_SERVICE_NAME=hunty-hr
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://172.17.0.1:4317
+      - OTEL_EXPORTER_OTLP_PROTOCOL=grpc
+      - OTEL_TRACES_SAMPLER=parentbased_always_on
+      - OTEL_METRICS_EXPORTER=none
+      - OTEL_LOGS_EXPORTER=none
       # Метрики приложения и JVM на служебном порту, отдельном от прикладного:
       # на прикладном они были бы доступны снаружи через обратный прокси, и
       # защита держалась бы на одной строке его конфигурации.
@@ -48,13 +60,13 @@ services:
       - SERVER_FORWARD_HEADERS_STRATEGY=framework
       # Без этого JVM считает доступной память всего сервера и берёт под кучу
       # четверть от неё, не замечая предела контейнера.
-      - JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=55
+      - JAVA_TOOL_OPTIONS=-XX:MaxRAMPercentage=55 -javaagent:/otel/opentelemetry-javaagent.jar
     # Сервер делит память между всеми проектами, поэтому у каждого свой потолок.
     deploy:
       resources:
         limits:
           cpus: "2.0"
-          memory: 1280M
+          memory: 1408M
     networks: [common-infra]
 
   # Голосовое интервью: распознавание и синтез речи, разбор видео.
