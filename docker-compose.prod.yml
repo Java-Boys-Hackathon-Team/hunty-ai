@@ -27,9 +27,18 @@ services:
       - './hunty-hr/src/main/resources/application-prod.properties:/app/config/application-prod.properties'
     ports:
       - "8083:8080"
+      # Служебный порт с метриками; наружу не проброшен, метрики
+      # забирает Prometheus по локальной сети.
+      - "9083:9083"
     env_file:
       - .env.prod
     environment:
+      # Метрики приложения и JVM на служебном порту, отдельном от прикладного:
+      # на прикладном они были бы доступны снаружи через обратный прокси, и
+      # защита держалась бы на одной строке его конфигурации.
+      - MANAGEMENT_SERVER_PORT=9083
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,info,prometheus,metrics
+      - MANAGEMENT_METRICS_TAGS_APPLICATION=hunty-hr
       # Журнал в JSON: сборщик логов получает готовые поля - уровень, логгер,
       # сообщение, - и фильтр по уровню работает без разбора текста регулярками.
       # Переменной, а не свойством в коде: значение относится к среде запуска,
